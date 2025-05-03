@@ -22,27 +22,35 @@ intents.members = True
 bot = commands.Bot(command_prefix=".", intents=intents)
 banned_words = ["diddy",]
 
-# TODO: Make sure that repeating_events are getting saved and loaded correctly
+# FIXME: Repeating events get cleared on git push - I need to write them to a file
 repeating_events = {}
 
 def save_repeating_events():
     # Prepare a simplified version of repeating_events for saving
-    simplified_events = {
-        channel_id: {
-            "embed": {
-                "title": event_data["embed"].title,
-                "description": event_data["embed"].description,
-                "fields": event_data["embed"].fields,
-                "footer": event_data["embed"].footer.text if event_data["embed"].footer else None,
-            },
-            "role_to_mention": event_data["role_to_mention"].id if event_data["role_to_mention"] else None,
+    simplified_events = {}
+
+    for channel_id, event_data in repeating_events.items():
+        embed = event_data["embed"]
+        role_to_mention = event_data["role_to_mention"]
+
+        # Serialize the embed object
+        embed_data = {
+            "title": embed.title,
+            "description": embed.description,
+            "fields": [{"name": field.name, "value": field.value, "inline": field.inline} for field in embed.fields],
+            "footer": embed.footer.text if embed.footer else None,
+            "color": embed.color.value if embed.color else None,
         }
-        for channel_id, event_data in repeating_events.items()
-    }
+
+        # Add the serialized data to the simplified_events dictionary
+        simplified_events[channel_id] = {
+            "embed": embed_data,
+            "role_to_mention": role_to_mention.id if role_to_mention else None,
+        }
 
     # Save to a JSON file
     with open("repeating_events.json", "w") as f:
-        json.dump(simplified_events, f)
+        json.dump(simplified_events, f, indent=4)
 
 async def load_repeating_events():
     global repeating_events
@@ -60,7 +68,7 @@ async def load_repeating_events():
             embed = discord.Embed(
                 title=embed_data["title"],
                 description=embed_data["description"],
-                color=discord.Color.red(),
+                color=discord.Color(embed_data["color"]) if embed_data["color"] else None,
             )
             for field in embed_data["fields"]:
                 embed.add_field(name=field["name"], value=field["value"], inline=field["inline"])
@@ -87,12 +95,18 @@ async def load_repeating_events():
 
 @bot.event
 async def on_ready():
-    print(f"{bot.user.name} online")  # pyright: ignore
-    await load_repeating_events()
+    print(f"{bot.user.name} is online!")  # pyright: ignore
+
+    # Load events when the bot starts
+    await load_repeating_events()  
+
+    # Start the loop if it's not already running
+    if not repeat_event.is_running():
+        repeat_event.start()
 
 @bot.event
 async def on_disconnect():
-    save_repeating_events()
+    save_repeating_events()  # Save events when the bot shuts down
     print("Repeating events saved.")
 
 @bot.event
@@ -120,6 +134,7 @@ async def on_message(message):
     # Lets us continue handling other messages
     await bot.process_commands(message)
 
+# @tasks.loop(seconds=5)  # Testing interval
 @tasks.loop(seconds=604800)  # Weekly interval
 async def repeat_event():
     for channel_id, event_data in repeating_events.items():
@@ -135,9 +150,14 @@ async def repeat_event():
         else:
             await channel.send(embed=embed)  # pyright: ignore
 
-    # Start the loop if it's not already running
-    if not repeat_event.is_running():  # pyright: ignore
-        repeat_event.start()  # pyright: ignore
+@bot.command()
+@commands.is_owner()  # Restrict this command to the bot owner for security
+async def shutdown(ctx):
+    """Gracefully shuts down the bot."""
+    await ctx.send("Shutting down... Saving data.")
+    save_repeating_events()  # Save repeating events to a file
+    await ctx.send("Data saved. Goodbye!")
+    await bot.close()  # Gracefully close the bot
 
 @bot.command()
 @commands.has_role("Admins")
@@ -271,7 +291,5 @@ async def event(ctx):
             "view": view,
             "role_to_mention": role_to_mention,
         }
-        if not repeat_event.is_running():
-            repeat_event.start()
 
 bot.run(token, log_handler=handler, log_level=logging.DEBUG)  # pyright: ignore
