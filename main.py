@@ -25,8 +25,7 @@ repeating_events = {}
 
 @bot.event
 async def on_ready():
-    # print(f"{bot.user.name} online")
-    pass
+    print(f"{bot.user.name} online")  # pyright: ignore
 
 @bot.event
 async def on_member_join(member, ctx):
@@ -100,11 +99,19 @@ async def event(ctx):
         f"{i + 1}: <t:{int(time.mktime(option.astimezone(pytz.utc).timetuple()))}:F> (relative: <t:{int(time.mktime(option.astimezone(pytz.utc).timetuple()))}:R>)"
         for i, option in enumerate(time_options)
     ]
-    time_prompt = (
-        "When should this event take place? Choose one of the following options by typing the number:\n" +
-        "\n".join(time_strings)
-    )
-    selected_index = await get_property(time_prompt)
+
+    # Split the time options into chunks to avoid exceeding the 2000-character limit
+    chunk_size = 10  # Number of options per message
+    chunks = [time_strings[i:i + chunk_size] for i in range(0, len(time_strings), chunk_size)]
+    
+    # Send each chunk as a separate message
+    await ctx.author.send("When should this event take place? Choose one of the following options by typing the number:")
+    for chunk in chunks:
+        await ctx.author.send("\n".join(chunk))
+    
+    # Wait for the user's response
+    selected_index = await get_property("Please type the number corresponding to your choice:")
+
     if not selected_index or not selected_index.isdigit() or int(selected_index) - 1 not in range(len(time_options)):
         await ctx.author.send("Invalid selection. Event creation canceled.")
         return
