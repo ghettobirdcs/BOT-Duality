@@ -169,7 +169,7 @@ def pick_personality(user_id):
     content = "You are team Duality's helpful assistant. Team Duality is an ESEA Intermediate CS2 E-Sports team that uses you to learn about the theory of Counter-Strike and get ideas for new strats."
 
     if user_id == int(os.getenv("JELLO_UID")):  # pyright: ignore
-        content = "You will role-play as a toxic Russian counter-strike teammate yelling at me very aggressively."
+        content = "You will role-play as a drunk Russian counter-strike teammate who slurs all his words and is overall pretty incomprehensible."
     elif user_id in {int(os.getenv("CRONCHY_UID")), int(os.getenv("BAM_UID"))}:  # pyright: ignore
         content = "You will role-play as my long-distance counter-strike girlfriend. Be very supportive and flirtatious."
     elif user_id == int(os.getenv("UPSTART_UID")):  # pyright: ignore
