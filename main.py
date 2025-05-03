@@ -263,6 +263,12 @@ async def clear(ctx):
     await ctx.send("Conversation history cleared.")
 
 @bot.command()
+@commands.is_owner() # Command for the bot owner to clear ALL history for every user
+async def clearall(ctx):
+    conversation_history.clear()
+    await ctx.send("ALL Conversation history cleared for every user.")
+
+@bot.command()
 @commands.has_role("Admins")
 async def event(ctx):
     try:
