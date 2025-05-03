@@ -87,6 +87,8 @@ async def event(ctx):
 
     # Ask for the event title
     event_title = await get_property("What would you like to title this event?")
+    if not event_title:
+        return
 
     # Generate a list of times from noon to midnight
     mst = pytz.timezone("US/Mountain")  # Define the MST timezone
