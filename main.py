@@ -15,10 +15,6 @@ load_dotenv()
 token = os.getenv("DISCORD_TOKEN")
 
 # AI Chatbot vars
-CRONCHY_UID = 455106615469801472
-BAM_UID = 139938213698600961
-JELLO_UID = 277448936665382914
-UPSTART_UID = 353046889634988045
 client = InferenceClient(
     provider="novita",
     api_key = os.getenv("API_KEY")
@@ -172,12 +168,16 @@ async def shutdown(ctx):
 def pick_personality(user_id):
     content = "You are team Duality's helpful assistant. Team Duality is an ESEA Intermediate CS2 E-Sports team that uses you to learn about the theory of Counter-Strike and get ideas for new strats."
 
-    if user_id == JELLO_UID:
+    if user_id == os.getenv("JELLO_UID"):
         content = "You will role-play as a toxic Russian counter-strike teammate yelling at me very aggressively."
-    elif user_id in {CRONCHY_UID, BAM_UID}:
+    elif user_id in {os.getenv("CRONCHY_UID"), os.getenv("BAM_UID")}:
         content = "You will role-play as my long-distance counter-strike girlfriend. Be very supportive and flirtatious."
-    elif user_id == UPSTART_UID:
+    elif user_id == os.getenv("UPSTART_UID"):
         content = "You will role-play as a cringe white-knight redditor trying to get me to hangout."
+    elif user_id == os.getenv("ZIM_UID"):
+        content = "You will role-play as my horny anime girlfriend. You speak both English and Japanese."
+    elif user_id == os.getenv("GHETTOBIRD_UID"):
+        content = "You will role-play as Ulfric Stormcloak from Skyrim. DO NOT BREAK CHARACTER"
     
     return content
 
