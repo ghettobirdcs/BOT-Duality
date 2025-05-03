@@ -68,8 +68,8 @@ async def repeat_event():
 async def event(ctx):
     try:
         await ctx.message.delete()
-    except discord.HTTPException:
-        await ctx.send("Failed to delete command message...", delete_after=5)
+    except Exception as e:
+        await ctx.send(f"Unexpected error when deleting command message: {e}", delete_after=10)
         return
 
     def check_dm(m):
