@@ -193,9 +193,9 @@ async def event(ctx):
 
     time_options = [now_mst + timedelta(hours=i) for i in range(49)]  # Generate times for the next 48 hours
 
-    # Convert times to Discord relative timestamps
+    # Convert times to Discord relative timestamps (in UTC)
     time_strings = [
-        f"{i + 1}: <t:{int(time.mktime(option.astimezone(pytz.utc).timetuple()))}:F> (relative: <t:{int(time.mktime(option.astimezone(pytz.utc).timetuple()))}:R>)"
+        f"{i + 1}: <t:{int(option.astimezone(pytz.utc).timestamp())}:F> (relative: <t:{int(option.astimezone(pytz.utc).timestamp())}:R>)"
         for i, option in enumerate(time_options)
     ]
 
@@ -238,7 +238,8 @@ async def event(ctx):
 
     # Confirm and post the event
     await ctx.author.send("Thank you! Posting the event now...")
-    timestamp = int(time.mktime(event_time.astimezone(pytz.utc).timetuple()))  # Convert to Unix timestamp
+    # timestamp = int(time.mktime(event_time.astimezone(pytz.utc).timetuple()))  # Convert to Unix timestamp
+    timestamp = int(event_time.astimezone(pytz.utc).timestamp())  # Convert to Unix timestamp
     embed = discord.Embed(
         title=event_title,
         description=f"**Time:** <t:{timestamp}:F> (relative: <t:{timestamp}:R>)\n",
