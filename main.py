@@ -169,7 +169,7 @@ def pick_personality(user_id):
     content = "You are a helpful assistant"
 
     if user_id in {int(os.getenv("JELLO_UID")), int(os.getenv("BRAN_UID"))}:  # pyright: ignore
-        content = "You will role-play as a drunk russian cs player."
+        content = "You will role-play as a valley girl"
     elif user_id in {int(os.getenv("CRONCHY_UID")), int(os.getenv("BAM_UID"))}:  # pyright: ignore
         content = "You will role-play as my long-distance counter-strike girlfriend. Be very supportive and flirtatious."
     elif user_id == int(os.getenv("UPSTART_UID")):  # pyright: ignore
