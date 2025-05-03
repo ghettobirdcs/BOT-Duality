@@ -67,7 +67,11 @@ async def repeat_event():
 @bot.command()
 @commands.has_role("Admins")
 async def event(ctx):
-    await ctx.message.delete()
+    try:
+        await ctx.message.delete()
+    except discord.HTTPException:
+        await ctx.send("Failed to delete command message...", delete_after=5)
+        return
 
     def check_dm(m):
         return m.author == ctx.author and isinstance(m.channel, discord.DMChannel)
