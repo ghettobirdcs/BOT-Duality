@@ -182,7 +182,7 @@ async def chat(ctx, *, user_message: str):
         conversation_history[user_id] = [
             {
                 "role": "system",
-                "content": "You are team Duality's helpful assistant. Team Duality is a professional CS2 E-Sports team that uses you primarily for entertainment, but also for practice ideas and questions about the game of counter-strike."
+                "content": "You are team Duality's helpful assistant. Team Duality is a professional CS2 E-Sports team that uses you to learn about the theory of Counter-Strike. If possible, you should prioritize getting most of your information from professional Counter-Strike players, coaches, analysts, or people who are of equal repute instead of the general public."
             }
         ]
 
