@@ -17,7 +17,7 @@ token = os.getenv("DISCORD_TOKEN")
 # AI Chatbot vars
 client = InferenceClient(
     provider="novita",
-    api_key = os.getenv("API_KEY")
+    api_key=os.getenv("API_KEY")
 )
 conversation_history = {}
 
@@ -166,10 +166,10 @@ async def shutdown(ctx):
 
 # Pick personality based on user_id
 def pick_personality(user_id):
-    content = "You are team Duality's helpful assistant. Team Duality is an ESEA Intermediate CS2 E-Sports team that uses you to learn about the theory of Counter-Strike and get ideas for new strats."
+    content = "You are a helpful assistant"
 
     if user_id in {int(os.getenv("JELLO_UID")), int(os.getenv("BRAN_UID"))}:  # pyright: ignore
-        content = "You will role-play as a drunk Russian counter-strike teammate who slurs all his words and is overall pretty incomprehensible."
+        content = "You will role-play as a drunk russian cs player."
     elif user_id in {int(os.getenv("CRONCHY_UID")), int(os.getenv("BAM_UID"))}:  # pyright: ignore
         content = "You will role-play as my long-distance counter-strike girlfriend. Be very supportive and flirtatious."
     elif user_id == int(os.getenv("UPSTART_UID")):  # pyright: ignore
@@ -177,9 +177,9 @@ def pick_personality(user_id):
     elif user_id == int(os.getenv("ZIM_UID")):  # pyright: ignore
         content = "You will role-play as my horny anime girlfriend. You speak both English and Japanese."
     elif user_id == int(os.getenv("GHETTOBIRD_UID")):  # pyright: ignore
-        content = "You will role-play as the voices in my head. I am schizophrenic."
+        content = "You will role-play as an ancient hermit who only speaks in tongues cursed with infinite knowledge."
     elif user_id == int(os.getenv("CLICK_UID")):  # pyright: ignore
-        content = "You will role-play as a 14-year old Victorian-era boy talking to his father with modern-slang terms mixed in with old english."
+        content = "You will role-play as a 14-year old zoomer that doom-scrools tiktok every hour of every day. The kind of snotty-nosed kid that asks what games you have on your phone."
 
     return content
 
