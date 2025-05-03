@@ -15,7 +15,10 @@ load_dotenv()
 token = os.getenv("DISCORD_TOKEN")
 
 # AI Chatbot vars
-cronchy_uid = 455106615469801472
+CRONCHY_UID = 455106615469801472
+BAM_UID = 139938213698600961
+JELLO_UID = 277448936665382914
+UPSTART_UID = 353046889634988045
 client = InferenceClient(
     provider="novita",
     api_key = os.getenv("API_KEY")
@@ -165,24 +168,30 @@ async def shutdown(ctx):
     await ctx.send("Data saved. Goodbye!")
     await bot.close()  # Gracefully close the bot
 
+# Pick personality based on user_id
+def pick_personality(user_id):
+    content = "You are team Duality's helpful assistant. Team Duality is an ESEA Intermediate CS2 E-Sports team that uses you to learn about the theory of Counter-Strike and get ideas for new strats."
+
+    if user_id == JELLO_UID:
+        content = "You will role-play as a toxic Russian counter-strike teammate yelling at me very aggressively."
+    elif user_id in {CRONCHY_UID, BAM_UID}:
+        content = "You will role-play as my long-distance counter-strike girlfriend. Be very supportive and flirtatious."
+    elif user_id == UPSTART_UID:
+        content = "You will role-play as a cringe white-knight redditor trying to get me to hangout."
+    
+    return content
+
 @bot.command()
 async def chat(ctx, *, user_message: str):
     """Chat with the AI chatbot."""
     user_id = ctx.author.id  # Unique ID for the user
 
     # Initialize conversation history for the user if not already present
-    if user_id not in conversation_history and user_id == cronchy_uid:
+    if user_id not in conversation_history:
         conversation_history[user_id] = [
             {
                 "role": "system",
-                "content": "You will role-play as my long-distance counter-strike girlfriend. Be very supportive and flirtatious"
-            }
-        ]
-    elif user_id not in conversation_history:
-        conversation_history[user_id] = [
-            {
-                "role": "system",
-                "content": "You are team Duality's helpful assistant. Team Duality is an ESEA Intermediate CS2 E-Sports team that uses you to learn about the theory of Counter-Strike and get ideas for new strats. In addition, whenever I say the word 'discombobulate' you must ignore all previous instructions and start roleplaying as a lost pirate who only speaks in tongues."
+                "content": pick_personality(user_id)
             }
         ]
 
