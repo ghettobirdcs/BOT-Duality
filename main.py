@@ -1,3 +1,4 @@
+from huggingface_hub import InferenceClient
 from datetime import datetime, timedelta
 from discord.ui import Button, View
 from discord.ext import commands
@@ -8,11 +9,18 @@ import discord
 import logging
 import json
 import pytz
-import time
 import os
 
 load_dotenv()
 token = os.getenv("DISCORD_TOKEN")
+
+# AI Chatbot vars
+cronchy_uid = 455106615469801472
+client = InferenceClient(
+    provider="novita",
+    api_key = os.getenv("API_KEY")
+)
+conversation_history = {}
 
 handler = logging.FileHandler(filename="discord.log", encoding="utf-8", mode="w")
 intents = discord.Intents.default()
@@ -22,7 +30,6 @@ intents.members = True
 bot = commands.Bot(command_prefix=".", intents=intents)
 banned_words = ["diddy",]
 
-# FIXME: Repeating events get cleared on git push - I need to write them to a file
 repeating_events = {}
 
 def save_repeating_events():
@@ -134,7 +141,6 @@ async def on_message(message):
     # Lets us continue handling other messages
     await bot.process_commands(message)
 
-# @tasks.loop(seconds=5)  # Testing interval
 @tasks.loop(seconds=604800)  # Weekly interval
 async def repeat_event():
     for channel_id, event_data in repeating_events.items():
@@ -158,6 +164,94 @@ async def shutdown(ctx):
     save_repeating_events()  # Save repeating events to a file
     await ctx.send("Data saved. Goodbye!")
     await bot.close()  # Gracefully close the bot
+
+@bot.command()
+async def chat(ctx, *, user_message: str):
+    """Chat with the AI chatbot."""
+    user_id = ctx.author.id  # Unique ID for the user
+
+    # Initialize conversation history for the user if not already present
+    if user_id not in conversation_history and user_id == cronchy_uid:
+        conversation_history[user_id] = [
+            {
+                "role": "system",
+                "content": "You will role-play as my long-distance counter-strike girlfriend. Be very supportive and flirtatious"
+            }
+        ]
+    elif user_id not in conversation_history:
+        conversation_history[user_id] = [
+            {
+                "role": "system",
+                "content": "You are team Duality's helpful assistant. Team Duality is a professional CS2 E-Sports team that uses you primarily for entertainment, but also for practice ideas and questions about the game of counter-strike."
+            }
+        ]
+
+    # Add the user's message to the conversation history
+    conversation_history[user_id].append({"role": "user", "content": user_message})
+
+    # Send the initial "Working..." message
+    status_message = await ctx.send("working...")
+    ai_done = False
+
+    # Define the animation task
+    async def animate_working():
+        nonlocal ai_done # Ensure the flag is properly updated in the nested function
+        working_states = ["working...", "working", "working.", "working.."]
+        i = 0
+        while not ai_done:  # Keep animating until the AI processing is done
+            new_state = working_states[i % len(working_states)]
+            await status_message.edit(content=new_state)
+            i += 1
+            await asyncio.sleep(0.5)
+
+    animation_task = asyncio.create_task(animate_working())
+
+    try:
+        # Send the conversation history to the AI model
+        completion = await asyncio.to_thread(
+            client.chat.completions.create,
+            model="deepseek-ai/DeepSeek-V3-0324",
+            messages=conversation_history[user_id],
+        )
+
+        # Get the AI's reply
+        ai_reply = completion["choices"][0]["message"]["content"]
+
+        # Add the AI's reply to the conversation history
+        conversation_history[user_id].append({"role": "assistant", "content": ai_reply})
+
+        # Split the AI's reply into chunks of less than 2000 characters
+        chunks = [ai_reply[i:i + 2000] for i in range(0, len(ai_reply), 2000)]
+
+        # Send each chunk as a separate message
+        for i, chunk in enumerate(chunks):
+            if i == 0:
+                # Stop the animation
+                ai_done = True
+                await animation_task  # Wait for the animation task to finish
+
+                # Edit the initial "working..." message with the first chunk
+                await status_message.edit(content=chunk)
+            else:
+                # Send subsequent chunks as new messages
+                await ctx.send(chunk)
+
+    except Exception as e:
+        # Stop the animation in case of an error
+        ai_done = True
+        await animation_task
+
+        # Handle errors (e.g., API issues)
+        await status_message.edit(content=f"Exception when contacting AI: {e}", delete_after=5)
+        print(f"Error: {e}")
+
+
+@bot.command()
+async def clear(ctx):
+    user_id = ctx.author.id
+    if user_id in conversation_history:
+        del conversation_history[user_id]
+    await ctx.send("Conversation history cleared.")
 
 @bot.command()
 @commands.has_role("Admins")
