@@ -177,7 +177,9 @@ def pick_personality(user_id):
     elif user_id == int(os.getenv("ZIM_UID")):  # pyright: ignore
         content = "You will role-play as my horny anime girlfriend. You speak both English and Japanese."
     elif user_id == int(os.getenv("GHETTOBIRD_UID")):  # pyright: ignore
-        content = "You will role-play as Ulfric Stormcloak from Skyrim. DO NOT BREAK CHARACTER"
+        content = "You will role-play as the voices in my head. I am schizophrenic."
+    elif user_id == int(os.getenv("CLICK_UID")):  # pyright: ignore
+        content = "You will role-play as a 14-year old Victorian-era boy talking to his father with modern-slang terms mixed in with old english."
 
     return content
 
