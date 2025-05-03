@@ -6,6 +6,7 @@ from discord.ext import tasks
 import asyncio
 import discord
 import logging
+import json
 import pytz
 import time
 import os
@@ -21,11 +22,78 @@ intents.members = True
 bot = commands.Bot(command_prefix=".", intents=intents)
 banned_words = ["diddy",]
 
+# TODO: Make sure that repeating_events are getting saved and loaded correctly
 repeating_events = {}
+
+def save_repeating_events():
+    # Prepare a simplified version of repeating_events for saving
+    simplified_events = {
+        channel_id: {
+            "embed": {
+                "title": event_data["embed"].title,
+                "description": event_data["embed"].description,
+                "fields": event_data["embed"].fields,
+                "footer": event_data["embed"].footer.text if event_data["embed"].footer else None,
+            },
+            "role_to_mention": event_data["role_to_mention"].id if event_data["role_to_mention"] else None,
+        }
+        for channel_id, event_data in repeating_events.items()
+    }
+
+    # Save to a JSON file
+    with open("repeating_events.json", "w") as f:
+        json.dump(simplified_events, f)
+
+async def load_repeating_events():
+    global repeating_events
+    try:
+        with open("repeating_events.json", "r") as f:
+            simplified_events = json.load(f)
+
+        # Reconstruct repeating_events
+        for channel_id, event_data in simplified_events.items():
+            channel = bot.get_channel(int(channel_id))
+            if not channel:
+                continue
+
+            embed_data = event_data["embed"]
+            embed = discord.Embed(
+                title=embed_data["title"],
+                description=embed_data["description"],
+                color=discord.Color.red(),
+            )
+            for field in embed_data["fields"]:
+                embed.add_field(name=field["name"], value=field["value"], inline=field["inline"])
+            if embed_data["footer"]:
+                embed.set_footer(text=embed_data["footer"])
+
+            role_to_mention = None
+            if event_data["role_to_mention"]:
+                guild = channel.guild  # pyright: ignore
+                role_to_mention = guild.get_role(event_data["role_to_mention"])
+
+            repeating_events[channel_id] = {
+                "ctx": None,  # ctx cannot be reconstructed
+                "embed": embed,
+                "view": None,  # view cannot be reconstructed
+                "role_to_mention": role_to_mention,
+            }
+
+        print("Repeating events loaded successfully.")
+    except FileNotFoundError:
+        print("No repeating events file found. Starting fresh.")
+    except Exception as e:
+        print(f"Error loading repeating events: {e}")
 
 @bot.event
 async def on_ready():
     print(f"{bot.user.name} online")  # pyright: ignore
+    await load_repeating_events()
+
+@bot.event
+async def on_disconnect():
+    save_repeating_events()
+    print("Repeating events saved.")
 
 @bot.event
 async def on_member_join(member, ctx):
@@ -46,22 +114,30 @@ async def on_message(message):
     if any(word in message.content.lower() for word in banned_words):
         await message.delete()
         await message.channel.send(f"{message.author.mention} Use of banned words detected - watch your mouth!")
+    elif "shut up" in message.content.lower():
+        await message.channel.send(f"Shut up {message.author.mention}")
 
     # Lets us continue handling other messages
     await bot.process_commands(message)
 
-@tasks.loop(seconds=604800)
+@tasks.loop(seconds=604800)  # Weekly interval
 async def repeat_event():
-    for event_data in repeating_events.values():
-        ctx = event_data["ctx"]
+    for channel_id, event_data in repeating_events.items():
+        channel = bot.get_channel(int(channel_id))
+        if not channel:
+            continue
+
         embed = event_data["embed"]
-        view = event_data["view"]
         role_to_mention = event_data["role_to_mention"]
-        
+
         if role_to_mention:
-            await ctx.send(f"{role_to_mention.mention}", embed=embed, view=view)
+            await channel.send(f"{role_to_mention.mention}", embed=embed)  # pyright: ignore
         else:
-            await ctx.send(embed=embed, view=view)
+            await channel.send(embed=embed)  # pyright: ignore
+
+    # Start the loop if it's not already running
+    if not repeat_event.is_running():  # pyright: ignore
+        repeat_event.start()  # pyright: ignore
 
 @bot.command()
 @commands.has_role("Admins")
@@ -159,7 +235,7 @@ async def event(ctx):
             self.attending = []
             self.not_attending = []
 
-        @discord.ui.button(label="O", style=discord.ButtonStyle.green)
+        @discord.ui.button(label="✔", style=discord.ButtonStyle.green)
         async def attending_button(self, interaction: discord.Interaction, button: Button):
             if interaction.user.name not in self.attending:
                 self.attending.append(interaction.user.name)
