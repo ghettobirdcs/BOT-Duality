@@ -92,6 +92,9 @@ async def event(ctx):
     # Generate a list of times from noon to midnight
     mst = pytz.timezone("US/Mountain")  # Define the MST timezone
     now_mst = datetime.now(mst)
+    # Round the current time down to the nearest hour
+    now_mst = now_mst.replace(minute=0, second=0, microsecond=0)
+
     time_options = [now_mst + timedelta(hours=i) for i in range(49)]  # Generate times for the next 48 hours
 
     # Convert times to Discord relative timestamps
