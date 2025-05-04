@@ -184,13 +184,13 @@ async def process_ai_response(user_id, conversation_history, status_message, ctx
     """Handles the AI call and processes the response using Ollama."""
     # Prepare the payload for the Ollama API
     payload = {
-        "model": "Llama-3.2-3B-Instruct-abliterated-q4_K_M",  # Replace with the name of your model
+        "model": "huihui_ai/llama3.2-abliterate",  # Replace with the name of your model
         "messages": conversation_history[user_id],
     }
     
     try:
         # Send the request to the Ollama server
-        response = requests.post("http://localhost:11434/api/chat", json=payload)
+        response = requests.post("http://localhost:11434/chat", json=payload)
         response.raise_for_status()  # Raise an error for HTTP issues
 
         # Get the AI's reply
