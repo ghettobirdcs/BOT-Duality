@@ -216,12 +216,8 @@ async def process_ai_response(user_id, conversation_history, ctx, user_message):
     animation_task = asyncio.create_task(animate_working())
     
     try:
-        headers = {
-            "Content-Type": "application/json",
-        }
-
         # Send the request to the Ollama server
-        response = requests.post(f"https://{os.getenv('IP')}:11434/api/chat", json=payload, headers=headers)
+        response = requests.post(f"https://{os.getenv('IP')}:11434/api/chat", json=payload)
 
         # Parse the JSON response
         response_data = response.json()
