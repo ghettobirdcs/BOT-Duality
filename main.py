@@ -265,7 +265,6 @@ async def chat(ctx, *, user_message: str):
             except Exception as retry_error:
                 # Handle errors during the retry
                 await status_message.edit(content=f"Retry failed: {retry_error}", delete_after=10)
-                print(f"Retry failed: {retry_error}")
         else:
             # Handle other HTTP errors
             await status_message.edit(content=f"Unknown HTTP Error: {e}", delete_after=10)
@@ -277,7 +276,6 @@ async def chat(ctx, *, user_message: str):
 
         # Handle errors (e.g., API issues)
         await status_message.edit(content=f"Exception when contacting AI: {e}", delete_after=5)
-        print(f"Error: {e}")
 
 
 @bot.command()
