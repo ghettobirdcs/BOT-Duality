@@ -16,6 +16,14 @@ token = os.getenv("DISCORD_TOKEN")
 
 # Chatbot history
 conversation_history = {}
+conversation_lock = asyncio.Lock() 
+
+async def add_to_conversation(user_id, message):
+    """Safely add a message to the user's conversation history."""
+    async with conversation_lock:
+        if user_id not in conversation_history:
+            conversation_history[user_id] = []
+        conversation_history[user_id].append(message)
 
 handler = logging.FileHandler(filename="discord.log", encoding="utf-8", mode="w")
 intents = discord.Intents.default()
@@ -111,16 +119,15 @@ async def on_disconnect():
     save_repeating_events()  # Save events when the bot shuts down
     print("Repeating events saved.")
 
-# TODO: Verify this function works
 @bot.event
-async def on_member_join(member, ctx):
-    await member.send(f"Welcome to Duality, {member.name}!")
-    role = discord.utils.get(ctx.guild.roles, name="Prospects")
+async def on_member_join(member):
+    guild = member.guild
+    role = discord.utils.get(guild.roles, name="Prospects")
     if role:
-        await ctx.author.add_roles(role)
-        await ctx.send(f"{member.name} is now assigned to {role}")
+        await member.add_roles(role)
+        await member.send(f"Welcome to Duality, {member.name}! You have been assigned the {role.name} role.")
     else:
-        await ctx.send("Couldn't assign member - role doesn't exist")
+        await member.send("Welcome to Duality! However, the 'Prospects' role could not be assigned because it doesn't exist.")
     
 @bot.event
 async def on_message(message):
@@ -221,7 +228,8 @@ async def process_ai_response(user_id, conversation_history, ctx, user_message):
         ai_reply = response_data["message"]["content"]
 
         # Add the AI's reply to the conversation history
-        conversation_history[user_id].append({"role": "assistant", "content": ai_reply})
+        assistant_message = {"role": "assistant", "content": ai_reply}
+        await add_to_conversation(user_id, assistant_message)
 
         # Split the AI's reply into chunks of less than 2000 characters
         chunks = [ai_reply[i:i + 2000] for i in range(0, len(ai_reply), 2000)]
@@ -237,27 +245,35 @@ async def process_ai_response(user_id, conversation_history, ctx, user_message):
 
     except requests.exceptions.RequestException as e:
         ai_done = True
-        await animation_task
+        animation_task.cancel()  # Cancel the animation task
+        try:
+            await animation_task
+        except asyncio.CancelledError:
+            pass  # Ignore the cancellation error
 
         # Handle errors (e.g., server not running, network issues)
         # TODO: Change this back to edit
         # await status_message.edit(content=f"Error contacting Ollama server: {e}")
-        await ctx.sent(content=f"Error contacting Ollama server: {e}")
+        await ctx.send(content=f"Error contacting Ollama server: {e}")
 
 @bot.command()
 async def chat(ctx, *, user_message: str):
     """Chat with the AI chatbot."""
     user_id = ctx.author.id  # Unique ID for the user
 
-    # Initialize conversation history for the user if not already present
+    # Add the system message to the conversation history if it's the user's first message
     if user_id not in conversation_history:
-        conversation_history[user_id] = [
-            {
-                "role": "system",
-                "content": pick_personality(user_id)
-            }
-        ]
+        system_message = {
+            "role": "system",
+            "content": pick_personality(user_id)
+        }
+        await add_to_conversation(user_id, system_message)
 
+    # Add the user's message to the conversation history
+    user_message_entry = {"role": "user", "content": user_message}
+    await add_to_conversation(user_id, user_message_entry)
+
+    # Process the AI response
     await process_ai_response(user_id, conversation_history, ctx, user_message)
 
 
