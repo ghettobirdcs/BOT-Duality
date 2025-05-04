@@ -1,5 +1,6 @@
 from huggingface_hub import InferenceClient
 from datetime import datetime, timedelta
+from requests import HTTPError
 from discord.ui import Button, View
 from discord.ext import commands
 from dotenv import load_dotenv
@@ -183,6 +184,33 @@ def pick_personality(user_id):
 
     return content
 
+async def process_ai_response(user_id, conversation_history, status_message, ctx):
+    """Handles the AI call and processes the response."""
+    # Send the conversation history to the AI model
+    completion = await asyncio.to_thread(
+        client.chat.completions.create,
+        model="deepseek-ai/DeepSeek-V3-0324",
+        messages=conversation_history[user_id],
+    )
+
+    # Get the AI's reply
+    ai_reply = completion["choices"][0]["message"]["content"]
+
+    # Add the AI's reply to the conversation history
+    conversation_history[user_id].append({"role": "assistant", "content": ai_reply})
+
+    # Split the AI's reply into chunks of less than 2000 characters
+    chunks = [ai_reply[i:i + 2000] for i in range(0, len(ai_reply), 2000)]
+
+    # Send each chunk as a separate message
+    for i, chunk in enumerate(chunks):
+        if i == 0:
+            # Edit the initial "working..." message with the first chunk
+            await status_message.edit(content=chunk)
+        else:
+            # Send subsequent chunks as new messages
+            await ctx.send(chunk)
+
 @bot.command()
 async def chat(ctx, *, user_message: str):
     """Chat with the AI chatbot."""
@@ -218,34 +246,27 @@ async def chat(ctx, *, user_message: str):
     animation_task = asyncio.create_task(animate_working())
 
     try:
-        # Send the conversation history to the AI model
-        completion = await asyncio.to_thread(
-            client.chat.completions.create,
-            model="deepseek-ai/DeepSeek-V3-0324",
-            messages=conversation_history[user_id],
-        )
+        # Attempt to process the AI response
+        await process_ai_response(user_id, conversation_history, status_message, ctx)
 
-        # Get the AI's reply
-        ai_reply = completion["choices"][0]["message"]["content"]
+    except HTTPError as e:
+        ai_done = True
+        await animation_task
 
-        # Add the AI's reply to the conversation history
-        conversation_history[user_id].append({"role": "assistant", "content": ai_reply})
+        if e.response.status_code == 402:
+            await status_message.edit(content=f"Slow down!\nInference limit reached; message will complete in 45 seconds...")
+            await asyncio.sleep(45)
 
-        # Split the AI's reply into chunks of less than 2000 characters
-        chunks = [ai_reply[i:i + 2000] for i in range(0, len(ai_reply), 2000)]
-
-        # Send each chunk as a separate message
-        for i, chunk in enumerate(chunks):
-            if i == 0:
-                # Stop the animation
-                ai_done = True
-                await animation_task  # Wait for the animation task to finish
-
-                # Edit the initial "working..." message with the first chunk
-                await status_message.edit(content=chunk)
-            else:
-                # Send subsequent chunks as new messages
-                await ctx.send(chunk)
+            try:
+                # Retry the AI call
+                await process_ai_response(user_id, conversation_history, status_message, ctx)
+            except Exception as retry_error:
+                # Handle errors during the retry
+                await status_message.edit(content=f"Retry failed: {retry_error}", delete_after=10)
+                print(f"Retry failed: {retry_error}")
+        else:
+            # Handle other HTTP errors
+            await status_message.edit(content=f"Unknown HTTP Error: {e}", delete_after=10)
 
     except Exception as e:
         # Stop the animation in case of an error
