@@ -184,7 +184,7 @@ async def process_ai_response(user_id, conversation_history, status_message, ctx
     """Handles the AI call and processes the response using Ollama."""
     # Prepare the payload for the Ollama API
     payload = {
-        "model": "huihui_ai/llama3.2-abliterate",  # Replace with the name of your model
+        "model": "huihui_ai/llama3.2-abliterate",
         "messages": conversation_history[user_id],
         "stream": False
     }
@@ -194,8 +194,11 @@ async def process_ai_response(user_id, conversation_history, status_message, ctx
         response = requests.post("http://localhost:11434/api/chat", json=payload)
         response.raise_for_status()  # Raise an error for HTTP issues
 
-        # Get the AI's reply
-        ai_reply = response.json()["response"]
+        # Parse the JSON response
+        response_data = response.json()
+
+        # Extract the assistant's reply from the response
+        ai_reply = response_data["message"]["content"]
 
         # Add the AI's reply to the conversation history
         conversation_history[user_id].append({"role": "assistant", "content": ai_reply})
@@ -214,8 +217,9 @@ async def process_ai_response(user_id, conversation_history, status_message, ctx
 
     except requests.exceptions.RequestException as e:
         # Handle errors (e.g., server not running, network issues)
-        await ctx.send(content=f"Error contacting Ollama server: {e}")
-    
+        await status_message.edit(content=f"Error contacting Ollama server: {e}", delete_after=10)
+        print(f"Error contacting Ollama server: {e}")    
+
 @bot.command()
 async def chat(ctx, *, user_message: str):
     """Chat with the AI chatbot."""
