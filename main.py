@@ -186,6 +186,7 @@ async def process_ai_response(user_id, conversation_history, status_message, ctx
     payload = {
         "model": "huihui_ai/llama3.2-abliterate",  # Replace with the name of your model
         "messages": conversation_history[user_id],
+        "stream": False
     }
     
     try:
