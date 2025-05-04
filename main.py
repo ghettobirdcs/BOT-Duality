@@ -180,7 +180,7 @@ def pick_personality(user_id):
 
     return content
 
-async def process_ai_response(user_id, conversation_history, status_message, ctx):
+async def process_ai_response(user_id, conversation_history, ctx, user_message):
     """Handles the AI call and processes the response using Ollama."""
     # Prepare the payload for the Ollama API
     payload = {
@@ -188,6 +188,26 @@ async def process_ai_response(user_id, conversation_history, status_message, ctx
         "messages": conversation_history[user_id],
         "stream": False
     }
+
+    # Add the user's message to the conversation history
+    conversation_history[user_id].append({"role": "user", "content": user_message})
+
+    # Send the initial "Working..." message
+    status_message = await ctx.send("working...")
+    ai_done = False
+
+    # Define the animation task
+    async def animate_working():
+        nonlocal ai_done # Ensure the flag is properly updated in the nested function
+        working_states = ["working...", "working", "working.", "working.."]
+        i = 0
+        while not ai_done:  # Keep animating until the AI processing is done
+            new_state = working_states[i % len(working_states)]
+            await status_message.edit(content=new_state)
+            i += 1
+            await asyncio.sleep(0.5)
+
+    animation_task = asyncio.create_task(animate_working())
     
     try:
         # Send the request to the Ollama server
@@ -216,9 +236,13 @@ async def process_ai_response(user_id, conversation_history, status_message, ctx
                 await ctx.send(chunk)
 
     except requests.exceptions.RequestException as e:
+        ai_done = True
+        await animation_task
+
         # Handle errors (e.g., server not running, network issues)
-        await status_message.edit(content=f"Error contacting Ollama server: {e}", delete_after=10)
-        print(f"Error contacting Ollama server: {e}")    
+        # TODO: Change this back to edit
+        # await status_message.edit(content=f"Error contacting Ollama server: {e}")
+        await ctx.sent(content=f"Error contacting Ollama server: {e}")
 
 @bot.command()
 async def chat(ctx, *, user_message: str):
@@ -234,37 +258,7 @@ async def chat(ctx, *, user_message: str):
             }
         ]
 
-    # Add the user's message to the conversation history
-    conversation_history[user_id].append({"role": "user", "content": user_message})
-
-    # Send the initial "Working..." message
-    status_message = await ctx.send("working...")
-    ai_done = False
-
-    # Define the animation task
-    async def animate_working():
-        nonlocal ai_done # Ensure the flag is properly updated in the nested function
-        working_states = ["working...", "working", "working.", "working.."]
-        i = 0
-        while not ai_done:  # Keep animating until the AI processing is done
-            new_state = working_states[i % len(working_states)]
-            await status_message.edit(content=new_state)
-            i += 1
-            await asyncio.sleep(0.5)
-
-    animation_task = asyncio.create_task(animate_working())
-
-    try:
-        # Attempt to process the AI response
-        await process_ai_response(user_id, conversation_history, status_message, ctx)
-
-    except Exception as e:
-        # Stop the animation in case of an error
-        ai_done = True
-        await animation_task
-
-        # Handle errors (e.g., API issues)
-        await status_message.edit(content=f"Exception when contacting AI: {e}", delete_after=5)
+    await process_ai_response(user_id, conversation_history, ctx, user_message)
 
 
 @bot.command()
