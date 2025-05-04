@@ -3,4 +3,3 @@ python-dotenv
 pytz
 requests
 asyncio
-flask
