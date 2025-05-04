@@ -199,7 +199,7 @@ async def process_ai_response(user_id, conversation_history, ctx, user_message):
     }
 
     # Add the user's message to the conversation history
-    conversation_history[user_id].append({"role": "user", "content": user_message})
+    await add_to_conversation(user_id, {"role": "user", "content": user_message})
 
     # Send the initial "Working..." message
     status_message = await ctx.send("working...")
