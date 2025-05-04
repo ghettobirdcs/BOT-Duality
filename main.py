@@ -111,6 +111,7 @@ async def on_disconnect():
     save_repeating_events()  # Save events when the bot shuts down
     print("Repeating events saved.")
 
+# TODO: Verify this function works
 @bot.event
 async def on_member_join(member, ctx):
     await member.send(f"Welcome to Duality, {member.name}!")
@@ -183,7 +184,7 @@ async def process_ai_response(user_id, conversation_history, status_message, ctx
     """Handles the AI call and processes the response using Ollama."""
     # Prepare the payload for the Ollama API
     payload = {
-        "model": "llama3.2",  # Replace with the name of your model
+        "model": "Llama-3.2-3B-Instruct-abliterated-q4_K_M",  # Replace with the name of your model
         "messages": conversation_history[user_id],
     }
     
