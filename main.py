@@ -18,14 +18,12 @@ token = os.getenv("DISCORD_TOKEN")
 
 # Chatbot history
 conversation_history = {}
-conversation_lock = asyncio.Lock() 
 
-async def add_to_conversation(user_id, message):
+def add_to_conversation(user_id, message):
     """Safely add a message to the user's conversation history."""
-    async with conversation_lock:
-        if user_id not in conversation_history:
-            conversation_history[user_id] = []
-        conversation_history[user_id].append(message)
+    if user_id not in conversation_history:
+        conversation_history[user_id] = []
+    conversation_history[user_id].append(message)
 
 handler = logging.FileHandler(filename="discord.log", encoding="utf-8", mode="w")
 intents = discord.Intents.default()
@@ -199,7 +197,7 @@ async def process_ai_response(user_id, conversation_history, ctx, user_message):
     }
 
     # Add the user's message to the conversation history
-    await add_to_conversation(user_id, {"role": "user", "content": user_message})
+    add_to_conversation(user_id, {"role": "user", "content": user_message})
 
     # Send the initial "Working..." message
     status_message = await ctx.send("working...")
@@ -231,7 +229,7 @@ async def process_ai_response(user_id, conversation_history, ctx, user_message):
 
         # Add the AI's reply to the conversation history
         assistant_message = {"role": "assistant", "content": ai_reply}
-        await add_to_conversation(user_id, assistant_message)
+        add_to_conversation(user_id, assistant_message)
 
         # Split the AI's reply into chunks of less than 2000 characters
         chunks = [ai_reply[i:i + 2000] for i in range(0, len(ai_reply), 2000)]
@@ -269,11 +267,11 @@ async def chat(ctx, *, user_message: str):
             "role": "system",
             "content": pick_personality(user_id)
         }
-        await add_to_conversation(user_id, system_message)
+        add_to_conversation(user_id, system_message)
 
     # Add the user's message to the conversation history
     user_message_entry = {"role": "user", "content": user_message}
-    await add_to_conversation(user_id, user_message_entry)
+    add_to_conversation(user_id, user_message_entry)
 
     # Process the AI response
     await process_ai_response(user_id, conversation_history, ctx, user_message)
