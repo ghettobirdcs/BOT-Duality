@@ -216,8 +216,14 @@ async def process_ai_response(user_id, conversation_history, ctx, user_message):
     animation_task = asyncio.create_task(animate_working())
     
     try:
+        # Add the Origin header
+        headers = {
+            "Content-Type": "application/json",
+            "Origin": f"https://{os.getenv('IP')}"
+        }
+
         # Send the request to the Ollama server
-        response = requests.post(f"https://{os.getenv('IP')}/api/chat", json=payload)
+        response = requests.post(f"https://{os.getenv('IP')}/api/chat", json=payload, headers=headers)
         response.raise_for_status()  # Raise an error for HTTP issues
 
         # Parse the JSON response
@@ -251,9 +257,7 @@ async def process_ai_response(user_id, conversation_history, ctx, user_message):
             pass  # Ignore the cancellation error
 
         # Handle errors (e.g., server not running, network issues)
-        # TODO: Change this back to edit
-        # await status_message.edit(content=f"Error contacting Ollama server: {e}")
-        await ctx.send(content=f"Error contacting Ollama server: {e}")
+        await status_message.edit(content=f"Error contacting Ollama server: {e}")
 
 @bot.command()
 async def chat(ctx, *, user_message: str):
