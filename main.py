@@ -20,7 +20,6 @@ token = os.getenv("DISCORD_TOKEN")
 conversation_history = {}
 
 def add_to_conversation(user_id, message):
-    """Safely add a message to the user's conversation history."""
     if user_id not in conversation_history:
         conversation_history[user_id] = []
     conversation_history[user_id].append(message)
