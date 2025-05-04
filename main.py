@@ -213,7 +213,7 @@ async def process_ai_response(user_id, conversation_history, status_message, ctx
 
     except requests.exceptions.RequestException as e:
         # Handle errors (e.g., server not running, network issues)
-        await status_message.edit(content=f"Error contacting Ollama server: {e}", delete_after=10)
+        await ctx.send(content=f"Error contacting Ollama server: {e}")
     
 @bot.command()
 async def chat(ctx, *, user_message: str):
