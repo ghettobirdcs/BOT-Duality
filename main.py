@@ -218,7 +218,7 @@ async def process_ai_response(user_id, conversation_history, ctx, user_message):
     
     try:
         # Send the request to the Ollama server
-        response = requests.post("http://localhost:11434/api/chat", json=payload)
+        response = requests.post(f"http://{os.getenv("IP")}):11434/api/chat", json=payload)
         response.raise_for_status()  # Raise an error for HTTP issues
 
         # Parse the JSON response
