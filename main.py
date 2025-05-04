@@ -254,8 +254,10 @@ async def chat(ctx, *, user_message: str):
         await animation_task
 
         if e.response.status_code == 402:
-            await status_message.edit(content=f"Slow down!\nInference limit reached; message will complete in 45 seconds...")
-            await asyncio.sleep(45)
+            # Notify the user about the delay
+            for remaining in range(60, 0, -1):  # Countdown from 60 to 1
+                await status_message.edit(content=f"Slow down!\nInference limit reached; retrying in {remaining} seconds...")
+                await asyncio.sleep(1)  # Wait for 1 second
 
             try:
                 # Retry the AI call
