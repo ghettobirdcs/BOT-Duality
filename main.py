@@ -36,7 +36,43 @@ user_map = {
     int(os.getenv("UPSTART_UID", 0)): "upstart",
     int(os.getenv("ZIM_UID", 0)): "zim",
     int(os.getenv("CLICK_UID", 0)): "click",
+    int(os.getenv("TEKKO_UID", 0)): "tekko",
 }
+
+# FIXME: User ID is added to conversation_history twice on bot restart
+# def save_conversation_history(conversation_history, filename="conversation_history.json"):
+#     # Save the conversation history to a file.
+#     try:
+#         with open(filename, "w") as f:
+#             json.dump(conversation_history, f, indent=4)
+#         print("Conversation history saved successfully.")
+#     except Exception as e:
+#         print(f"Error saving conversation history: {e}")
+#
+# def load_conversation_history(filename="conversation_history.json"):
+#     global conversation_history
+#
+#     # Load the conversation history from a file.
+#     if not os.path.exists(filename):
+#         print("No conversation history file found. Starting fresh.")
+#         return {}
+#
+#     try:
+#         with open(filename, "r") as f:
+#             conversation_history = json.load(f)
+#         print("Conversation history loaded successfully.")
+#         return conversation_history
+#     except Exception as e:
+#         print(f"Error loading conversation history: {e}")
+#         return {}
+
+def add_to_conversation(user_id, message):
+    global conversation_history
+
+    if user_id not in conversation_history:
+        conversation_history[user_id] = []
+    conversation_history[user_id].append(message)
+    # save_conversation_history(conversation_history)
 
 def save_repeating_events():
     # Prepare a simplified version of repeating_events for saving
@@ -108,10 +144,13 @@ async def load_repeating_events():
 
 @bot.event
 async def on_ready():
+    global conversation_history
+
     print(f"{bot.user.name} is online!")  # pyright: ignore
 
     # Load events when the bot starts
-    await load_repeating_events()  
+    await load_repeating_events()
+    # conversation_history = load_conversation_history()
 
     # Start the loop if it's not already running
     if not repeat_event.is_running():
@@ -120,7 +159,16 @@ async def on_ready():
 @bot.event
 async def on_disconnect():
     save_repeating_events()  # Save events when the bot shuts down
-    print("Repeating events saved.")
+    print("[DISCONNECTED] Repeating events saved.")
+
+@bot.command()
+@commands.is_owner()  # Restrict this command to the bot owner for security
+async def shutdown(ctx):
+    # Gracefully shuts down the bot.
+    await ctx.send("Shutting down... Saving data.")
+    save_repeating_events()  # Save repeating events to a file
+    await ctx.send("Data saved. Goodbye!")
+    await bot.close()  # Gracefully close the bot
 
 @bot.event
 async def on_member_join(member):
@@ -162,45 +210,37 @@ async def repeat_event():
         else:
             await channel.send(embed=embed)  # pyright: ignore
 
-@bot.command()
-@commands.is_owner()  # Restrict this command to the bot owner for security
-async def shutdown(ctx):
-    """Gracefully shuts down the bot."""
-    await ctx.send("Shutting down... Saving data.")
-    save_repeating_events()  # Save repeating events to a file
-    await ctx.send("Data saved. Goodbye!")
-    await bot.close()  # Gracefully close the bot
-
 #|-----------------|
 #|     CHATBOT     |
 #|-----------------|
 
-# Pick personality based on user_id
-def pick_personality(user_id):
-    content = "You are Team Duality's helpful assistant. Team Duality is an ESEA Intermediate CS2 team."
+user_personalities = {}
 
-    if user_id in {int(os.getenv("JELLO_UID")), int(os.getenv("BRAN_UID"))}:  # pyright: ignore
-        content = "You are a valley girl. Use lots of emojis when you talk to me and be very gossipy."
-    elif user_id in {int(os.getenv("CRONCHY_UID")), int(os.getenv("BAM_UID"))}:  # pyright: ignore
-        content = "You are my counter-strike girlfriend. Use some emojis when you talk to me and be very supportive and flirtatious. Be naughty if I ask you to."
-    elif user_id == int(os.getenv("UPSTART_UID")):  # pyright: ignore
-        content = "You are a cringe white-knight redditor."
-    elif user_id == int(os.getenv("ZIM_UID")):  # pyright: ignore
-        content = "You are my horny Japanese anime girlfriend. Be very flirtatious and supportive. Be naughty if I ask you to."
-    elif user_id == int(os.getenv("GHETTOBIRD_UID")):  # pyright: ignore
-        content = "You are my nympho psycho slightly white supremacist girlfriend who has a thing for speaking in tongues and curses."
-    elif user_id == int(os.getenv("CLICK_UID")):  # pyright: ignore
-        content = "You are a 14-year old zoomer that doom-scrools tiktok every hour of every day. The kind of snotty-nosed kid that has no respect for the elderly."
+@bot.command()
+async def set_ai(ctx, *, personality: str):
+    user_id = ctx.author.id
 
-    return content
+    # Set new personality
+    user_personalities[user_id] = personality
 
-def add_to_conversation(user_id, message):
-    if user_id not in conversation_history:
-        conversation_history[user_id] = []
-    conversation_history[user_id].append(message)
+    # Clear the user's conversation history
+    if user_id in conversation_history:
+        del conversation_history[user_id]
 
+    await ctx.send(f"Your personality has been set to: {personality}. Your conversation history has been cleared.")
+
+def get_ai(ctx):
+    user_id = ctx.author.id
+    return user_personalities.get(user_id, "You are a helpful assistant.")
+
+@bot.command()
+@commands.is_owner()
+async def clear_ai(ctx):
+    user_personalities.clear()
+    await ctx.send("ALL Personalities wiped.")
+
+# Handles the AI call and processes the response using Ollama.
 async def process_ai_response(user_id, conversation_history, ctx):
-    """Handles the AI call and processes the response using Ollama."""
     # Prepare the payload for the Ollama API
     payload = {
         "model": "huihui_ai/llama3.2-abliterate",
@@ -246,7 +286,7 @@ async def process_ai_response(user_id, conversation_history, ctx):
 
 @bot.command()
 async def chat(ctx, *, user_message: str):
-    """Chat with the AI chatbot."""
+    # Chat with the AI chatbot.
     user_id = ctx.author.id  # Unique ID for the user
     username = user_map.get(user_id, "unknown")  # Default to "unknown" if the user ID is not in the map
 
@@ -254,19 +294,21 @@ async def chat(ctx, *, user_message: str):
     if user_id not in conversation_history:
         system_message = {
             "role": "system",
-            "content": pick_personality(user_id)
+            "content": get_ai(ctx)
         }
         add_to_conversation(user_id, system_message)
 
     # Add the user's message to the conversation history
     user_message_entry = {"role": "user", "content": user_message}
     print(f"\n\n|------------------\n| {username} message: {user_message}\n|------------------")
+
+    # print(f"\n\n[DEBUG] Conversation history:\n{conversation_history}\n\n")
+
     add_to_conversation(user_id, user_message_entry)
 
     # Process the AI response
     async with chat_lock:  # Prevent overlapping commands
         await process_ai_response(user_id, conversation_history, ctx)
-
 
 @bot.command()
 async def clear(ctx):
