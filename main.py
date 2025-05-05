@@ -220,7 +220,7 @@ async def process_ai_response(user_id, conversation_history, ctx, user_message):
         ctx.send("[DEBUG] Trying to contact ollama server...", delete_after=10)
 
         # Send the request to the Ollama server
-        response = requests.post(f"https://{os.getenv('IP')}/api/chat", json=payload)
+        response = requests.post(f"{os.getenv('IP')}/api/chat", json=payload)
         response.raise_for_status()  # Raise an error for HTTP issues
 
         ctx.send(f"[DEBUG] Raw response: {response}", delete_after=10)
