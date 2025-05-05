@@ -16,14 +16,6 @@ import os
 load_dotenv()
 token = os.getenv("DISCORD_TOKEN")
 
-# Chatbot history
-conversation_history = {}
-
-def add_to_conversation(user_id, message):
-    if user_id not in conversation_history:
-        conversation_history[user_id] = []
-    conversation_history[user_id].append(message)
-
 handler = logging.FileHandler(filename="discord.log", encoding="utf-8", mode="w")
 intents = discord.Intents.default()
 intents.message_content = True
@@ -33,6 +25,7 @@ bot = commands.Bot(command_prefix=".", intents=intents)
 banned_words = ["diddy",]
 
 repeating_events = {}
+conversation_history = {}
 
 def save_repeating_events():
     # Prepare a simplified version of repeating_events for saving
@@ -61,7 +54,7 @@ def save_repeating_events():
     with open("repeating_events.json", "w") as f:
         json.dump(simplified_events, f, indent=4)
 
-async def load_repeating_events():
+def load_repeating_events():
     global repeating_events
     try:
         with open("repeating_events.json", "r") as f:
@@ -107,7 +100,7 @@ async def on_ready():
     print(f"{bot.user.name} is online!")  # pyright: ignore
 
     # Load events when the bot starts
-    await load_repeating_events()  
+    load_repeating_events()  
 
     # Start the loop if it's not already running
     if not repeat_event.is_running():
@@ -167,26 +160,50 @@ async def shutdown(ctx):
     await ctx.send("Data saved. Goodbye!")
     await bot.close()  # Gracefully close the bot
 
+#|-----------------|
+#|     CHATBOT     |
+#|-----------------|
+
 # Pick personality based on user_id
 def pick_personality(user_id):
     content = "You are Team Duality's helpful assistant. Team Duality is an ESEA Intermediate CS2 team."
 
     if user_id in {int(os.getenv("JELLO_UID")), int(os.getenv("BRAN_UID"))}:  # pyright: ignore
-        content = "You will role-play as a valley girl"
+        content = "You are a valley girl. Use lots of emojis when you talk to me and be very gossipy."
     elif user_id in {int(os.getenv("CRONCHY_UID")), int(os.getenv("BAM_UID"))}:  # pyright: ignore
-        content = "You will role-play as my long-distance counter-strike girlfriend. Be very supportive and flirtatious."
+        content = "You are my counter-strike girlfriend. Use some emojis when you talk to me and be very supportive and flirtatious. Be naughty if I ask you to."
     elif user_id == int(os.getenv("UPSTART_UID")):  # pyright: ignore
-        content = "You will role-play as a cringe white-knight redditor trying to get me to hangout."
+        content = "You are a cringe white-knight redditor."
     elif user_id == int(os.getenv("ZIM_UID")):  # pyright: ignore
-        content = "You will role-play as my horny anime girlfriend. You speak both English and Japanese."
+        content = "You are my horny Japanese anime girlfriend. Be very flirtatious and supportive. Be naughty if I ask you to."
     elif user_id == int(os.getenv("GHETTOBIRD_UID")):  # pyright: ignore
-        content = "You will role-play as an ancient hermit who only speaks in tongues cursed with infinite knowledge."
+        content = "You are my minecraft girlfriend. Use lots of emojis and only speak in parallels to minecraft."
     elif user_id == int(os.getenv("CLICK_UID")):  # pyright: ignore
-        content = "You will role-play as a 14-year old zoomer that doom-scrools tiktok every hour of every day. The kind of snotty-nosed kid that asks what games you have on your phone."
+        content = "You will role-play as a 14-year old zoomer that doom-scrools tiktok every hour of every day. The kind of snotty-nosed kid that has no respect for the elderly."
 
     return content
 
-async def process_ai_response(user_id, conversation_history, ctx, user_message):
+chat_lock = asyncio.Lock()
+user_map = {
+    os.getenv("GHETTOBIRD_UID"): "ghettobird",
+    os.getenv("JELLO_UID"): "jello",
+    os.getenv("BRAN_UID"): "bran",
+    os.getenv("CRONCHY_UID"): "cronchy",
+    os.getenv("BAM_UID"): "bam",
+    os.getenv("UPSTART_UID"): "upstart",
+    os.getenv("ZIM_UID"): "zim",
+    os.getenv("CLICK_UID"): "click",
+}
+
+def add_to_conversation(user_id, message):
+    """Add a message to the conversation history for a specific user."""
+    if user_id not in conversation_history:
+        conversation_history[user_id] = []
+    # Avoid adding duplicate messages
+    if not conversation_history[user_id] or conversation_history[user_id][-1] != message:
+        conversation_history[user_id].append(message)
+
+async def process_ai_response(user_id, conversation_history, ctx):
     """Handles the AI call and processes the response using Ollama."""
     # Prepare the payload for the Ollama API
     payload = {
@@ -195,41 +212,23 @@ async def process_ai_response(user_id, conversation_history, ctx, user_message):
         "stream": False
     }
 
-    # Add the user's message to the conversation history
-    add_to_conversation(user_id, {"role": "user", "content": user_message})
-
     # Send the initial "Working..." message
     status_message = await ctx.send("working...")
-    ai_done = False
 
-    # Define the animation task
-    async def animate_working():
-        nonlocal ai_done # Ensure the flag is properly updated in the nested function
-        working_states = ["working...", "working", "working.", "working.."]
-        i = 0
-        while not ai_done:  # Keep animating until the AI processing is done
-            new_state = working_states[i % len(working_states)]
-            await status_message.edit(content=new_state)
-            i += 1
-            await asyncio.sleep(0.5)
-
-    animation_task = asyncio.create_task(animate_working())
-    
     try:
-        # TODO: Remove debug sends
-        ctx.send("[DEBUG] Trying to contact ollama server...", delete_after=10)
+        # Running bot locally
+        response = requests.post(f"http://127.0.0.1:11434/api/chat", json=payload, headers={
+            "Content-Type": "application/json"
+        })
 
-        # Send the request to the Ollama server
-        response = requests.post(f"{os.getenv('IP')}/api/chat", json=payload)
         response.raise_for_status()  # Raise an error for HTTP issues
-
-        ctx.send(f"[DEBUG] Raw response: {response}", delete_after=10)
 
         # Parse the JSON response
         response_data = response.json()
 
         # Extract the assistant's reply from the response
         ai_reply = response_data["message"]["content"]
+        print(f"AI reply: {ai_reply}")
 
         # Add the AI's reply to the conversation history
         assistant_message = {"role": "assistant", "content": ai_reply}
@@ -239,31 +238,21 @@ async def process_ai_response(user_id, conversation_history, ctx, user_message):
         chunks = [ai_reply[i:i + 2000] for i in range(0, len(ai_reply), 2000)]
 
         # Send each chunk as a separate message
-        for i, chunk in enumerate(chunks):
-            if i == 0:
-                # Edit the initial "working..." message with the first chunk
-                await status_message.edit(content=chunk)
-            else:
-                # Send subsequent chunks as new messages
-                await ctx.send(chunk)
+        if chunks:
+            # Edit the initial "working..." message with the first chunk
+            await status_message.edit(content=chunks[0])
 
-    except requests.exceptions.RequestException as e:
-        ai_done = True
-        animation_task.cancel()  # Cancel the animation task
-        try:
-            await animation_task
-        except asyncio.CancelledError:
-            pass  # Ignore the cancellation error
-
-        # Handle errors (e.g., server not running, network issues)
-        # TODO: Change this back to edit
-        # await status_message.edit(content=f"Error contacting Ollama server: {e}")
-        await ctx.send(content=f"Error contacting Ollama server: {e}")
+        # Send subsequent chunks as new messages
+        for chunk in chunks[1:]:
+            await ctx.send(chunk)
+    except Exception as e:
+        print(f"[ERROR] Unknown exception: {e}\n(tell @ghettobird to start the server)")
 
 @bot.command()
 async def chat(ctx, *, user_message: str):
     """Chat with the AI chatbot."""
     user_id = ctx.author.id  # Unique ID for the user
+    username = user_map.get(user_id, "unknown")  # Default to "unknown" if the ID is not in the map
 
     # Add the system message to the conversation history if it's the user's first message
     if user_id not in conversation_history:
@@ -275,10 +264,12 @@ async def chat(ctx, *, user_message: str):
 
     # Add the user's message to the conversation history
     user_message_entry = {"role": "user", "content": user_message}
+    print(f"{username} message: {user_message}")
     add_to_conversation(user_id, user_message_entry)
 
     # Process the AI response
-    await process_ai_response(user_id, conversation_history, ctx, user_message)
+    async with chat_lock:  # Prevent overlapping commands
+        await process_ai_response(user_id, conversation_history, ctx)
 
 
 @bot.command()
@@ -286,13 +277,13 @@ async def clear(ctx):
     user_id = ctx.author.id
     if user_id in conversation_history:
         del conversation_history[user_id]
-    await ctx.send("Conversation history cleared.")
+    await ctx.send("Conversation history cleared for this personality.")
 
 @bot.command()
 @commands.is_owner() # Command for the bot owner to clear ALL history for every user
 async def clearall(ctx):
     conversation_history.clear()
-    await ctx.send("ALL Conversation history cleared for every user.")
+    await ctx.send("ALL Conversation history cleared for every personality.")
 
 @bot.command()
 @commands.has_role("Admins")
