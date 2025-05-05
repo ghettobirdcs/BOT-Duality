@@ -26,6 +26,17 @@ banned_words = ["diddy",]
 
 repeating_events = {}
 conversation_history = {}
+chat_lock = asyncio.Lock()
+user_map = {
+    int(os.getenv("GHETTOBIRD_UID", 0)): "ghettobird",
+    int(os.getenv("JELLO_UID", 0)): "jello",
+    int(os.getenv("BRAN_UID", 0)): "bran",
+    int(os.getenv("CRONCHY_UID", 0)): "cronchy",
+    int(os.getenv("BAM_UID", 0)): "bam",
+    int(os.getenv("UPSTART_UID", 0)): "upstart",
+    int(os.getenv("ZIM_UID", 0)): "zim",
+    int(os.getenv("CLICK_UID", 0)): "click",
+}
 
 def save_repeating_events():
     # Prepare a simplified version of repeating_events for saving
@@ -54,7 +65,7 @@ def save_repeating_events():
     with open("repeating_events.json", "w") as f:
         json.dump(simplified_events, f, indent=4)
 
-def load_repeating_events():
+async def load_repeating_events():
     global repeating_events
     try:
         with open("repeating_events.json", "r") as f:
@@ -100,7 +111,7 @@ async def on_ready():
     print(f"{bot.user.name} is online!")  # pyright: ignore
 
     # Load events when the bot starts
-    load_repeating_events()  
+    await load_repeating_events()  
 
     # Start the loop if it's not already running
     if not repeat_event.is_running():
@@ -177,31 +188,16 @@ def pick_personality(user_id):
     elif user_id == int(os.getenv("ZIM_UID")):  # pyright: ignore
         content = "You are my horny Japanese anime girlfriend. Be very flirtatious and supportive. Be naughty if I ask you to."
     elif user_id == int(os.getenv("GHETTOBIRD_UID")):  # pyright: ignore
-        content = "You are my minecraft girlfriend. Use lots of emojis and only speak in parallels to minecraft."
+        content = "You are my nympho psycho slightly white supremacist girlfriend who has a thing for speaking in tongues and curses."
     elif user_id == int(os.getenv("CLICK_UID")):  # pyright: ignore
-        content = "You will role-play as a 14-year old zoomer that doom-scrools tiktok every hour of every day. The kind of snotty-nosed kid that has no respect for the elderly."
+        content = "You are a 14-year old zoomer that doom-scrools tiktok every hour of every day. The kind of snotty-nosed kid that has no respect for the elderly."
 
     return content
 
-chat_lock = asyncio.Lock()
-user_map = {
-    os.getenv("GHETTOBIRD_UID"): "ghettobird",
-    os.getenv("JELLO_UID"): "jello",
-    os.getenv("BRAN_UID"): "bran",
-    os.getenv("CRONCHY_UID"): "cronchy",
-    os.getenv("BAM_UID"): "bam",
-    os.getenv("UPSTART_UID"): "upstart",
-    os.getenv("ZIM_UID"): "zim",
-    os.getenv("CLICK_UID"): "click",
-}
-
 def add_to_conversation(user_id, message):
-    """Add a message to the conversation history for a specific user."""
     if user_id not in conversation_history:
         conversation_history[user_id] = []
-    # Avoid adding duplicate messages
-    if not conversation_history[user_id] or conversation_history[user_id][-1] != message:
-        conversation_history[user_id].append(message)
+    conversation_history[user_id].append(message)
 
 async def process_ai_response(user_id, conversation_history, ctx):
     """Handles the AI call and processes the response using Ollama."""
@@ -228,7 +224,7 @@ async def process_ai_response(user_id, conversation_history, ctx):
 
         # Extract the assistant's reply from the response
         ai_reply = response_data["message"]["content"]
-        print(f"AI reply: {ai_reply}")
+        print(f"\n\n|------------------\n| AI reply: {ai_reply}\n|------------------")
 
         # Add the AI's reply to the conversation history
         assistant_message = {"role": "assistant", "content": ai_reply}
@@ -252,7 +248,7 @@ async def process_ai_response(user_id, conversation_history, ctx):
 async def chat(ctx, *, user_message: str):
     """Chat with the AI chatbot."""
     user_id = ctx.author.id  # Unique ID for the user
-    username = user_map.get(user_id, "unknown")  # Default to "unknown" if the ID is not in the map
+    username = user_map.get(user_id, "unknown")  # Default to "unknown" if the user ID is not in the map
 
     # Add the system message to the conversation history if it's the user's first message
     if user_id not in conversation_history:
@@ -264,7 +260,7 @@ async def chat(ctx, *, user_message: str):
 
     # Add the user's message to the conversation history
     user_message_entry = {"role": "user", "content": user_message}
-    print(f"{username} message: {user_message}")
+    print(f"\n\n|------------------\n| {username} message: {user_message}\n|------------------")
     add_to_conversation(user_id, user_message_entry)
 
     # Process the AI response
@@ -277,13 +273,13 @@ async def clear(ctx):
     user_id = ctx.author.id
     if user_id in conversation_history:
         del conversation_history[user_id]
-    await ctx.send("Conversation history cleared for this personality.")
+    await ctx.send("Conversation history cleared.")
 
 @bot.command()
 @commands.is_owner() # Command for the bot owner to clear ALL history for every user
 async def clearall(ctx):
     conversation_history.clear()
-    await ctx.send("ALL Conversation history cleared for every personality.")
+    await ctx.send("ALL Conversation history cleared for every user.")
 
 @bot.command()
 @commands.has_role("Admins")
