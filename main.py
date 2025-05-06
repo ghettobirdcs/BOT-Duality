@@ -174,11 +174,14 @@ async def shutdown(ctx):
 async def on_member_join(member):
     guild = member.guild
     role = discord.utils.get(guild.roles, name="Prospects")
+    # Fetch #general channel
+    general = discord.utils.get(guild.text_channels, name="general")
+
     if role:
         await member.add_roles(role)
-        await member.send(f"Welcome to Duality, {member.name}! You have been assigned the {role.name} role.")
+        await general.send(f"Welcome to Duality, {member.name}! You have been assigned the {role.name} role.")
     else:
-        await member.send("Welcome to Duality! However, the 'Prospects' role could not be assigned because it doesn't exist.")
+        await general.send("Welcome to Duality! However, the 'Prospects' role could not be assigned because it doesn't exist.")
     
 @bot.event
 async def on_message(message):
@@ -231,7 +234,7 @@ async def set_ai(ctx, *, personality: str):
 
 def get_ai(ctx):
     user_id = ctx.author.id
-    return user_personalities.get(user_id, "You are a helpful assistant.")
+    return user_personalities.get(user_id, "You are an assistant built into a discord app. Remind me often that I can use the .set_ai command to make a new personality.")
 
 @bot.command()
 @commands.is_owner()
@@ -282,7 +285,7 @@ async def process_ai_response(user_id, conversation_history, ctx):
         for chunk in chunks[1:]:
             await ctx.send(chunk)
     except Exception as e:
-        print(f"[ERROR] Unknown exception: {e}\n(tell @ghettobird to start the server)")
+        print(f"[ERROR] Unknown exception: {e}\n(tell <@{os.getenv('GHETTOBIRD_UID')}> to start the server)")
 
 @bot.command()
 async def chat(ctx, *, user_message: str):
@@ -294,7 +297,7 @@ async def chat(ctx, *, user_message: str):
     if user_id not in conversation_history:
         system_message = {
             "role": "system",
-            "content": get_ai(ctx)
+            "content": "You are an explicit discord bot that is used for role-play and entertainment. " + get_ai(ctx)
         }
         add_to_conversation(user_id, system_message)
 
