@@ -1,5 +1,6 @@
 # TODO: Check for empty .chat message
 
+from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import StableDiffusionPipeline
 from datetime import datetime, timedelta
 from discord.ui import Button, View
 from discord.ext import commands
@@ -9,8 +10,10 @@ import requests
 import asyncio
 import discord
 import logging
+import torch
 import json
 import pytz
+import io
 import os
 
 load_dotenv()
@@ -38,6 +41,39 @@ user_map = {
     int(os.getenv("CLICK_UID", 0)): "click",
     int(os.getenv("TEKKO_UID", 0)): "tekko",
 }
+
+# Generate an image
+def generate_image(prompt):
+    result = pipe(prompt)
+    if isinstance(result, tuple):  # Check if the result is a tuple
+        image = result[0]  # Access the first element of the tuple
+    else:
+        image = result.images[0]  # Access the images attribute
+    return image
+
+# Load the SDXL model
+model_id = "stabilityai/stable-diffusion-2-1"
+pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
+pipe.to("cuda")  # Use GPU for faster generation
+
+@bot.command()
+async def generate(ctx, *, prompt: str):
+    """Generate an image using SDXL."""
+    await ctx.send(f"Generating an image for: `{prompt}`. Please wait...")
+
+    try:
+        # Generate the image
+        image = pipe(prompt).images[0]  # pyright: ignore
+
+        # Save the image to a BytesIO object
+        image_bytes = io.BytesIO()
+        image.save(image_bytes, format="PNG")
+        image_bytes.seek(0)
+
+        # Send the image to Discord
+        await ctx.send(file=discord.File(fp=image_bytes, filename="generated_image.png"))
+    except Exception as e:
+        await ctx.send(f"An error occurred: {e}")
 
 # FIXME: User ID is added to conversation_history twice on bot restart
 # def save_conversation_history(conversation_history, filename="conversation_history.json"):

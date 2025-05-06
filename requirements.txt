@@ -4,3 +4,7 @@ pytz
 huggingface_hub
 requests
 asyncio
+diffusers
+torch
+transformers
+accelerate
