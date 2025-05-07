@@ -1,25 +1,22 @@
 # TODO: Check for empty .chat message
 # TODO: Clean unused libraries (autoremove)
+# TODO: Save chat history and set_ai system messages values to files
+# TODO: Save and load repeating events
 
-from diffusers.pipelines.pipeline_utils import DiffusionPipeline
-from datetime import datetime, timedelta
-from discord.ui import Button, View
+from utils.config import DISCORD_TOKEN
 from discord.ext import commands
-from dotenv import load_dotenv
-from discord.ext import tasks
-import requests
 import asyncio
 import discord
 import logging
-import torch
-import json
-import time
-import pytz
-import io
-import os
 
-load_dotenv()
-token = os.getenv("DISCORD_TOKEN")
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,  # Set the logging level
+    format="%(asctime)s %(levelname)s: %(message)s",  # Log format
+    handlers=[
+        logging.FileHandler(filename="discord.log", encoding="utf-8", mode="w"),  # Log to a file
+    ]
+)
 
 handler = logging.FileHandler(filename="discord.log", encoding="utf-8", mode="w")
 intents = discord.Intents.default()
@@ -29,533 +26,41 @@ intents.reactions = True
 intents.guilds = True
 
 bot = commands.Bot(command_prefix=".", intents=intents)
-banned_words = ["diddy",]
-
-repeating_events = {}
-conversation_history = {}
-chat_lock = asyncio.Lock()
-generate_lock = asyncio.Lock()
-
-# Load the SDXL model
-model_path = "PATH_TO_MODEL"  # Replace with the path to your model
-pipe = DiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16)
-pipe.to("cuda")  # Use GPU for faster generation
-pipe.safety_checker = None
-
-REACTION_MESSAGE_ID=1369459745353629727
-AI_ROLE_NAME="AI Fanclub"
 
 @bot.event
-async def on_raw_reaction_add(payload):
-    """Assign a role when a user reacts to a specific message."""
-    # Check if the reaction is on the correct message
-    if payload.message_id == REACTION_MESSAGE_ID:
-        guild = await bot.fetch_guild(payload.guild_id)  # Get the guild (server)
-        member = await guild.fetch_member(payload.user_id)# Get the member who reacted
-        role = discord.utils.get(guild.roles, name=AI_ROLE_NAME)  # Get the role by name
-
-        if role is None:
-            print(f"[ERROR] Role '{AI_ROLE_NAME}' not found in the guild.")
-            return
-
-        if member is not None:
-            try:
-                # Add the role to the member
-                await member.add_roles(role)
-                await member.send(f"Assigned role '{AI_ROLE_NAME}' to {member.name}.")
-            except discord.Forbidden:
-                print(f"[ERROR] Missing permissions to assign roles.")
-            except Exception as e:
-                print(f"[ERROR] An unexpected error occurred: {e}")
-        else:
-            print(f"[ERROR] Member not found for user ID {payload.user_id}.")
-
-@bot.event
-async def on_raw_reaction_remove(payload):
-    """Remove the role when a user removes their reaction."""
-    # Check if the reaction is on the correct message
-    if payload.message_id == REACTION_MESSAGE_ID:
-        guild = await bot.fetch_guild(payload.guild_id)  # Get the guild (server)
-        member = await guild.fetch_member(payload.user_id)# Get the member who reacted
-        role = discord.utils.get(guild.roles, name=AI_ROLE_NAME)  # Get the role by name
-
-        if role is None:
-            print(f"[ERROR] Role '{AI_ROLE_NAME}' not found in the guild.")
-            return
-
-        if member is not None:
-            try:
-                # Remove the role from the member
-                await member.remove_roles(role)
-                await member.send(f"Removed role '{AI_ROLE_NAME}' from {member.name}.")
-            except discord.Forbidden:
-                print(f"[ERROR] Missing permissions to remove roles.")
-            except Exception as e:
-                print(f"[ERROR] An unexpected error occurred: {e}")
-        else:
-            print(f"[ERROR] Member not found for user ID {payload.user_id}.")
-
-def is_in_allowed_channel():
-    def predicate(ctx):
-        return ctx.channel.id == int(os.getenv('NSFW_CHANNEL', 0))
-    return commands.check(predicate)
-
-@bot.command()
-@is_in_allowed_channel()
-async def generate(ctx, *, prompt: str):
-    """Generate an image using the Stable Diffusion model."""
-    global pipe
-
-    if not generate_lock.locked():
-        async with generate_lock:
-            start_time = time.time()
-
-            status_message = await ctx.send(f"Generating an image for: `{prompt}`. Please wait...")
-
-            try:
-                # Generate the image
-                image = pipe(prompt).images[0]  # pyright: ignore
-
-                elapsed_time = time.time() - start_time
-                await status_message.edit(content=f"Image generated in {elapsed_time:.2f} seconds!")
-
-                # Save the image to a BytesIO object
-                image_bytes = io.BytesIO()
-                image.save(image_bytes, format="PNG")
-                image_bytes.seek(0)
-
-                # Send the image to Discord
-                await ctx.send(file=discord.File(fp=image_bytes, filename="generated_image.png"))
-            except Exception as e:
-                print(f"[ERROR] {e}")
-                await ctx.send(f"An error occurred: {e}")
-    else:
-        await ctx.send("A generation is already in progress. Please wait for it to finish.")
-
-@bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.CheckFailure):
-        await ctx.send("You cannot use that command in this channel!")
-
-# FIXME: User ID is added to conversation_history twice on bot restart
-# def save_conversation_history(conversation_history, filename="conversation_history.json"):
-#     # Save the conversation history to a file.
-#     try:
-#         with open(filename, "w") as f:
-#             json.dump(conversation_history, f, indent=4)
-#         print("Conversation history saved successfully.")
-#     except Exception as e:
-#         print(f"Error saving conversation history: {e}")
-#
-# def load_conversation_history(filename="conversation_history.json"):
-#     global conversation_history
-#
-#     # Load the conversation history from a file.
-#     if not os.path.exists(filename):
-#         print("No conversation history file found. Starting fresh.")
-#         return {}
-#
-#     try:
-#         with open(filename, "r") as f:
-#             conversation_history = json.load(f)
-#         print("Conversation history loaded successfully.")
-#         return conversation_history
-#     except Exception as e:
-#         print(f"Error loading conversation history: {e}")
-#         return {}
-
-def add_to_conversation(user_id, message):
-    global conversation_history
-
-    if user_id not in conversation_history:
-        conversation_history[user_id] = []
-    conversation_history[user_id].append(message)
-    # save_conversation_history(conversation_history)
-
-def save_repeating_events():
-    # Prepare a simplified version of repeating_events for saving
-    simplified_events = {}
-
-    for channel_id, event_data in repeating_events.items():
-        embed = event_data["embed"]
-        role_to_mention = event_data["role_to_mention"]
-
-        # Serialize the embed object
-        embed_data = {
-            "title": embed.title,
-            "description": embed.description,
-            "fields": [{"name": field.name, "value": field.value, "inline": field.inline} for field in embed.fields],
-            "footer": embed.footer.text if embed.footer else None,
-            "color": embed.color.value if embed.color else None,
-        }
-
-        # Add the serialized data to the simplified_events dictionary
-        simplified_events[channel_id] = {
-            "embed": embed_data,
-            "role_to_mention": role_to_mention.id if role_to_mention else None,
-        }
-
-    # Save to a JSON file
-    with open("repeating_events.json", "w") as f:
-        json.dump(simplified_events, f, indent=4)
-
-async def load_repeating_events():
-    global repeating_events
-    try:
-        with open("repeating_events.json", "r") as f:
-            simplified_events = json.load(f)
-
-        # Reconstruct repeating_events
-        for channel_id, event_data in simplified_events.items():
-            channel = bot.get_channel(int(channel_id))
-            if not channel:
-                continue
-
-            embed_data = event_data["embed"]
-            embed = discord.Embed(
-                title=embed_data["title"],
-                description=embed_data["description"],
-                color=discord.Color(embed_data["color"]) if embed_data["color"] else None,
-            )
-            for field in embed_data["fields"]:
-                embed.add_field(name=field["name"], value=field["value"], inline=field["inline"])
-            if embed_data["footer"]:
-                embed.set_footer(text=embed_data["footer"])
-
-            role_to_mention = None
-            if event_data["role_to_mention"]:
-                guild = channel.guild  # pyright: ignore
-                role_to_mention = guild.get_role(event_data["role_to_mention"])
-
-            repeating_events[channel_id] = {
-                "ctx": None,  # ctx cannot be reconstructed
-                "embed": embed,
-                "view": None,  # view cannot be reconstructed
-                "role_to_mention": role_to_mention,
-            }
-
-        print("Repeating events loaded successfully.")
-    except FileNotFoundError:
-        print("No repeating events file found. Starting fresh.")
-    except Exception as e:
-        print(f"Error loading repeating events: {e}")
+async def on_message(message):
+    # Pass the message to the MessageHandler cog
+    await bot.get_cog("message_handler").on_message(message)  # pyright: ignore
 
 @bot.event
 async def on_ready():
-    global conversation_history
-
     print(f"{bot.user.name} is online!")  # pyright: ignore
-
-    # Load events when the bot starts
-    await load_repeating_events()
-    # conversation_history = load_conversation_history()
-
-    # Start the loop if it's not already running
-    if not repeat_event.is_running():
-        repeat_event.start()
 
 @bot.event
 async def on_disconnect():
-    save_repeating_events()  # Save events when the bot shuts down
-    print("[DISCONNECTED] Repeating events saved.")
-
-@bot.command()
-@commands.is_owner()  # Restrict this command to the bot owner for security
-async def shutdown(ctx):
-    # Gracefully shuts down the bot.
-    await ctx.send("Shutting down... Saving data.")
-    save_repeating_events()  # Save repeating events to a file
-    await ctx.send("Data saved. Goodbye!")
-    await bot.close()  # Gracefully close the bot
-
-@bot.event
-async def on_member_join(member):
-    guild = member.guild
-    role = discord.utils.get(guild.roles, name="Prospects")
-    # Fetch #general channel
-    general = discord.utils.get(guild.text_channels, name="general")
-
-    if role:
-        await member.add_roles(role)
-        await general.send(f"Welcome to Duality, {member.name}! You have been assigned the {role.name} role.")
-    else:
-        await general.send("Welcome to Duality! However, the 'Prospects' role could not be assigned because it doesn't exist.")
-    
-@bot.event
-async def on_message(message):
-    if message.author == bot.user:
-        return
-
-    # Check if any banned word is in the message content
-    if any(word in message.content.lower() for word in banned_words):
-        await message.delete()
-        await message.channel.send(f"{message.author.mention} Use of banned words detected - watch your mouth!")
-    elif "shut up" in message.content.lower():
-        await message.channel.send(f"Shut up {message.author.mention}")
-
-    # Lets us continue handling other messages
-    await bot.process_commands(message)
-
-@tasks.loop(seconds=604800)  # Weekly interval
-async def repeat_event():
-    for channel_id, event_data in repeating_events.items():
-        channel = bot.get_channel(int(channel_id))
-        if not channel:
-            continue
-
-        embed = event_data["embed"]
-        role_to_mention = event_data["role_to_mention"]
-
-        if role_to_mention:
-            await channel.send(f"{role_to_mention.mention}", embed=embed)  # pyright: ignore
-        else:
-            await channel.send(embed=embed)  # pyright: ignore
-
-#|-----------------|
-#|     CHATBOT     |
-#|-----------------|
-
-user_personalities = {}
-
-@bot.command()
-async def set_ai(ctx, *, personality: str):
-    user_id = ctx.author.id
-
-    # Set new personality
-    user_personalities[user_id] = personality
-
-    # Clear the user's conversation history
-    if user_id in conversation_history:
-        del conversation_history[user_id]
-
-    await ctx.send(f"Your personality has been set to: {personality}. Your conversation history has been cleared.")
-
-def get_ai(ctx):
-    user_id = ctx.author.id
-    return user_personalities.get(user_id, "You are an assistant built into a discord app. Remind me often that I can use the .set_ai command to make a new personality.")
+    print("[DISCONNECTED]")
 
 @bot.command()
 @commands.is_owner()
-async def clear_ai(ctx):
-    user_personalities.clear()
-    await ctx.send("ALL Personalities wiped.")
+async def shutdown(ctx):
+    await ctx.send("Shutting down...")
+    await bot.close()  # Gracefully close the bot
 
-# Handles the AI call and processes the response using Ollama.
-async def process_ai_response(user_id, conversation_history, ctx):
-    # Prepare the payload for the Ollama API
-    payload = {
-        "model": "huihui_ai/llama3.2-abliterate",
-        "messages": conversation_history[user_id],
-        "stream": False
-    }
+async def load_cogs():
+    """Load all cogs."""
+    await bot.load_extension("cogs.generate")  # pyright: ignore
+    await bot.load_extension("cogs.reactions")  # pyright: ignore
+    await bot.load_extension("cogs.chatbot")  # pyright: ignore
+    await bot.load_extension("cogs.message_handler")
+    await bot.load_extension("cogs.error_handler")
+    await bot.load_extension("cogs.welcome")
+    await bot.load_extension("cogs.events")
 
-    # Send the initial "Working..." message
-    status_message = await ctx.send("working...")
+async def main():
+    print("Starting bot...")
+    async with bot:
+        await load_cogs()
+        await bot.start(DISCORD_TOKEN)  # pyright: ignore
 
-    try:
-        # Running bot locally
-        response = requests.post(f"http://127.0.0.1:11434/api/chat", json=payload, headers={
-            "Content-Type": "application/json"
-        })
-
-        response.raise_for_status()  # Raise an error for HTTP issues
-
-        # Parse the JSON response
-        response_data = response.json()
-
-        # Extract the assistant's reply from the response
-        ai_reply = response_data["message"]["content"]
-        print(f"\n\n|------------------\n| AI reply: {ai_reply}\n|------------------")
-
-        # Add the AI's reply to the conversation history
-        assistant_message = {"role": "assistant", "content": ai_reply}
-        add_to_conversation(user_id, assistant_message)
-
-        # Split the AI's reply into chunks of less than 2000 characters
-        chunks = [ai_reply[i:i + 2000] for i in range(0, len(ai_reply), 2000)]
-
-        # Send each chunk as a separate message
-        if chunks:
-            # Edit the initial "working..." message with the first chunk
-            await status_message.edit(content=chunks[0])
-
-        # Send subsequent chunks as new messages
-        for chunk in chunks[1:]:
-            await ctx.send(chunk)
-    except Exception as e:
-        print(f"[ERROR] Unknown exception: {e}\n(tell <@{os.getenv('GHETTOBIRD_UID')}> to start the server)")
-
-@bot.command()
-@is_in_allowed_channel()
-async def chat(ctx, *, user_message: str):
-    # Chat with the AI chatbot.
-    user_id = ctx.author.id  # Unique ID for the user
-
-    # Add the system message to the conversation history if it's the user's first message
-    if user_id not in conversation_history:
-        system_message = {
-            "role": "system",
-            "content": "You are an explicit discord bot that is used for role-play and entertainment. " + get_ai(ctx)
-        }
-        add_to_conversation(user_id, system_message)
-
-    # Add the user's message to the conversation history
-    user_message_entry = {"role": "user", "content": user_message}
-    print(f"\n\n|------------------\n| message: {user_message}\n|------------------")
-
-    # print(f"\n\n[DEBUG] Conversation history:\n{conversation_history}\n\n")
-
-    add_to_conversation(user_id, user_message_entry)
-
-    # Process the AI response
-    async with chat_lock:  # Prevent overlapping commands
-        await process_ai_response(user_id, conversation_history, ctx)
-
-@bot.command()
-async def clear(ctx):
-    user_id = ctx.author.id
-    if user_id in conversation_history:
-        del conversation_history[user_id]
-    await ctx.send("Conversation history cleared.")
-
-@bot.command()
-@commands.is_owner() # Command for the bot owner to clear ALL history for every user
-async def clearall(ctx):
-    conversation_history.clear()
-    await ctx.send("ALL Conversation history cleared for every user.")
-
-@bot.command()
-@commands.has_role("Admins")
-async def event(ctx):
-    try:
-        await ctx.message.delete()
-    except Exception as e:
-        await ctx.send(f"Unexpected error when deleting command message: {e}", delete_after=10)
-        return
-
-    def check_dm(m):
-        return m.author == ctx.author and isinstance(m.channel, discord.DMChannel)
-
-    async def get_property(prompt):
-        try:
-            await ctx.author.send(prompt)
-            msg = await bot.wait_for("message", check=check_dm, timeout=60.0)
-            return msg.content
-        except asyncio.TimeoutError:
-            await ctx.author.send("You took too long to respond. Event creation canceled.")
-            return None
-
-    # Ask for the event title
-    event_title = await get_property("What would you like to title this event?")
-    if not event_title:
-        return
-
-    # Generate a list of times from noon to midnight
-    mst = pytz.timezone("US/Mountain")  # Define the MST timezone
-    now_mst = datetime.now(mst)
-    # Round the current time down to the nearest hour
-    now_mst = now_mst.replace(minute=0, second=0, microsecond=0)
-
-    time_options = [now_mst + timedelta(hours=i) for i in range(49)]  # Generate times for the next 48 hours
-
-    # Convert times to Discord relative timestamps (in UTC)
-    time_strings = [
-        f"{i + 1}: <t:{int(option.astimezone(pytz.utc).timestamp())}:F> (relative: <t:{int(option.astimezone(pytz.utc).timestamp())}:R>)"
-        for i, option in enumerate(time_options)
-    ]
-
-    # Split the time options into chunks to avoid exceeding the 2000-character limit
-    chunk_size = 10  # Number of options per message
-    chunks = [time_strings[i:i + chunk_size] for i in range(0, len(time_strings), chunk_size)]
-    
-    # Send each chunk as a separate message
-    await ctx.author.send("When should this event take place? Choose one of the following options by typing the number:")
-    for chunk in chunks:
-        await ctx.author.send("\n".join(chunk))
-    
-    # Wait for the user's response
-    selected_index = await get_property("Please type the number corresponding to your choice:")
-
-    if not selected_index or not selected_index.isdigit() or int(selected_index) - 1 not in range(len(time_options)):
-        await ctx.author.send("Invalid selection. Event creation canceled.")
-        return
-    event_time = time_options[int(selected_index) - 1]
-
-    # Ask for a role to mention
-    role_name = await get_property("Which role should be mentioned for this event? (Provide the exact role name or type 'none' to skip)")
-    if not role_name:
-        return
-
-    # Find the role in the guild
-    role_to_mention = None
-    if role_name.lower() != "none":
-        role_to_mention = discord.utils.get(ctx.guild.roles, name=role_name)
-        if not role_to_mention:
-            await ctx.author.send(f"Role '{role_name}' not found. Event creation canceled.")
-            return
-
-    # Ask if the event should repeat weekly
-    repeat_weekly = await get_property("Would you like this event to repeat weekly? (yes/no)")
-    if not repeat_weekly or repeat_weekly.lower() not in ["yes", "no"]:
-        await ctx.author.send("Invalid response. Event creation canceled.")
-        return
-    repeat_weekly = repeat_weekly.lower() == "yes"
-
-    # Confirm and post the event
-    await ctx.author.send("Thank you! Posting the event now...")
-    # timestamp = int(time.mktime(event_time.astimezone(pytz.utc).timetuple()))  # Convert to Unix timestamp
-    timestamp = int(event_time.astimezone(pytz.utc).timestamp())  # Convert to Unix timestamp
-    embed = discord.Embed(
-        title=event_title,
-        description=f"**Time:** <t:{timestamp}:F> (relative: <t:{timestamp}:R>)\n",
-        color=discord.Color.red(),
-    )
-    embed.add_field(name="✅ Attending", value="No one yet!", inline=True)
-    embed.add_field(name="❌ Not Attending", value="No one yet!", inline=True)
-    embed.set_footer(text=f"Event created by {ctx.author.name}")
-
-    # Create the buttons
-    class EventView(View):
-        def __init__(self):
-            super().__init__(timeout=None)
-            self.attending = []
-            self.not_attending = []
-
-        @discord.ui.button(label="✔", style=discord.ButtonStyle.green)
-        async def attending_button(self, interaction: discord.Interaction, button: Button):
-            if interaction.user.name not in self.attending:
-                self.attending.append(interaction.user.name)
-                if interaction.user.name in self.not_attending:
-                    self.not_attending.remove(interaction.user.name)
-                await self.update_embed(interaction)
-
-        @discord.ui.button(label="X", style=discord.ButtonStyle.red)
-        async def not_attending_button(self, interaction: discord.Interaction, button: Button):
-            if interaction.user.name not in self.not_attending:
-                self.not_attending.append(interaction.user.name)
-                if interaction.user.name in self.attending:
-                    self.attending.remove(interaction.user.name)
-                await self.update_embed(interaction)
-
-        async def update_embed(self, interaction: discord.Interaction):
-            embed.set_field_at(0, name="✅ Attending", value="\n".join(self.attending) or "No one yet!", inline=True)
-            embed.set_field_at(1, name="❌ Not Attending", value="\n".join(self.not_attending) or "No one yet!", inline=True)
-            await interaction.response.edit_message(embed=embed, view=self)
-
-    # Post the embed to the channel where the command was invoked
-    view = EventView()
-    if role_to_mention:
-        await ctx.send(f"{role_to_mention.mention}", embed=embed, view=view)
-    else:
-        await ctx.send(embed=embed, view=view)
-
-    # Schedule the event to repeat weekly if requested
-    if repeat_weekly:
-        repeating_events[ctx.channel.id] = {
-            "ctx": ctx,
-            "embed": embed,
-            "view": view,
-            "role_to_mention": role_to_mention,
-        }
-
-bot.run(token, log_handler=handler, log_level=logging.DEBUG)  # pyright: ignore
+if __name__ == "__main__":
+    asyncio.run(main())

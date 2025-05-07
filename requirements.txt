@@ -6,6 +6,6 @@ requests
 asyncio
 diffusers
 torch
-# transformers
-# accelerate
-# safetensors
+transformers
+accelerate
+safetensors
