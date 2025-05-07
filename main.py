@@ -1,6 +1,7 @@
 # TODO: Check for empty .chat message
+# TODO: Clean unused libraries (autoremove)
 
-from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion import StableDiffusionPipeline
+from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from datetime import datetime, timedelta
 from discord.ui import Button, View
 from discord.ext import commands
@@ -12,6 +13,7 @@ import discord
 import logging
 import torch
 import json
+import time
 import pytz
 import io
 import os
@@ -23,6 +25,8 @@ handler = logging.FileHandler(filename="discord.log", encoding="utf-8", mode="w"
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
+intents.reactions = True
+intents.guilds = True
 
 bot = commands.Bot(command_prefix=".", intents=intents)
 banned_words = ["diddy",]
@@ -30,50 +34,108 @@ banned_words = ["diddy",]
 repeating_events = {}
 conversation_history = {}
 chat_lock = asyncio.Lock()
-user_map = {
-    int(os.getenv("GHETTOBIRD_UID", 0)): "ghettobird",
-    int(os.getenv("JELLO_UID", 0)): "jello",
-    int(os.getenv("BRAN_UID", 0)): "bran",
-    int(os.getenv("CRONCHY_UID", 0)): "cronchy",
-    int(os.getenv("BAM_UID", 0)): "bam",
-    int(os.getenv("UPSTART_UID", 0)): "upstart",
-    int(os.getenv("ZIM_UID", 0)): "zim",
-    int(os.getenv("CLICK_UID", 0)): "click",
-    int(os.getenv("TEKKO_UID", 0)): "tekko",
-}
-
-# Generate an image
-def generate_image(prompt):
-    result = pipe(prompt)
-    if isinstance(result, tuple):  # Check if the result is a tuple
-        image = result[0]  # Access the first element of the tuple
-    else:
-        image = result.images[0]  # Access the images attribute
-    return image
+generate_lock = asyncio.Lock()
 
 # Load the SDXL model
-model_id = "stabilityai/stable-diffusion-2-1"
-pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float16)
+model_path = "PATH_TO_MODEL"  # Replace with the path to your model
+pipe = DiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16)
 pipe.to("cuda")  # Use GPU for faster generation
+pipe.safety_checker = None
+
+REACTION_MESSAGE_ID=1369459745353629727
+AI_ROLE_NAME="AI Fanclub"
+
+@bot.event
+async def on_raw_reaction_add(payload):
+    """Assign a role when a user reacts to a specific message."""
+    # Check if the reaction is on the correct message
+    if payload.message_id == REACTION_MESSAGE_ID:
+        guild = await bot.fetch_guild(payload.guild_id)  # Get the guild (server)
+        member = await guild.fetch_member(payload.user_id)# Get the member who reacted
+        role = discord.utils.get(guild.roles, name=AI_ROLE_NAME)  # Get the role by name
+
+        if role is None:
+            print(f"[ERROR] Role '{AI_ROLE_NAME}' not found in the guild.")
+            return
+
+        if member is not None:
+            try:
+                # Add the role to the member
+                await member.add_roles(role)
+                await member.send(f"Assigned role '{AI_ROLE_NAME}' to {member.name}.")
+            except discord.Forbidden:
+                print(f"[ERROR] Missing permissions to assign roles.")
+            except Exception as e:
+                print(f"[ERROR] An unexpected error occurred: {e}")
+        else:
+            print(f"[ERROR] Member not found for user ID {payload.user_id}.")
+
+@bot.event
+async def on_raw_reaction_remove(payload):
+    """Remove the role when a user removes their reaction."""
+    # Check if the reaction is on the correct message
+    if payload.message_id == REACTION_MESSAGE_ID:
+        guild = await bot.fetch_guild(payload.guild_id)  # Get the guild (server)
+        member = await guild.fetch_member(payload.user_id)# Get the member who reacted
+        role = discord.utils.get(guild.roles, name=AI_ROLE_NAME)  # Get the role by name
+
+        if role is None:
+            print(f"[ERROR] Role '{AI_ROLE_NAME}' not found in the guild.")
+            return
+
+        if member is not None:
+            try:
+                # Remove the role from the member
+                await member.remove_roles(role)
+                await member.send(f"Removed role '{AI_ROLE_NAME}' from {member.name}.")
+            except discord.Forbidden:
+                print(f"[ERROR] Missing permissions to remove roles.")
+            except Exception as e:
+                print(f"[ERROR] An unexpected error occurred: {e}")
+        else:
+            print(f"[ERROR] Member not found for user ID {payload.user_id}.")
+
+def is_in_allowed_channel():
+    def predicate(ctx):
+        return ctx.channel.id == int(os.getenv('NSFW_CHANNEL', 0))
+    return commands.check(predicate)
 
 @bot.command()
+@is_in_allowed_channel()
 async def generate(ctx, *, prompt: str):
-    """Generate an image using SDXL."""
-    await ctx.send(f"Generating an image for: `{prompt}`. Please wait...")
+    """Generate an image using the Stable Diffusion model."""
+    global pipe
 
-    try:
-        # Generate the image
-        image = pipe(prompt).images[0]  # pyright: ignore
+    if not generate_lock.locked():
+        async with generate_lock:
+            start_time = time.time()
 
-        # Save the image to a BytesIO object
-        image_bytes = io.BytesIO()
-        image.save(image_bytes, format="PNG")
-        image_bytes.seek(0)
+            status_message = await ctx.send(f"Generating an image for: `{prompt}`. Please wait...")
 
-        # Send the image to Discord
-        await ctx.send(file=discord.File(fp=image_bytes, filename="generated_image.png"))
-    except Exception as e:
-        await ctx.send(f"An error occurred: {e}")
+            try:
+                # Generate the image
+                image = pipe(prompt).images[0]  # pyright: ignore
+
+                elapsed_time = time.time() - start_time
+                await status_message.edit(content=f"Image generated in {elapsed_time:.2f} seconds!")
+
+                # Save the image to a BytesIO object
+                image_bytes = io.BytesIO()
+                image.save(image_bytes, format="PNG")
+                image_bytes.seek(0)
+
+                # Send the image to Discord
+                await ctx.send(file=discord.File(fp=image_bytes, filename="generated_image.png"))
+            except Exception as e:
+                print(f"[ERROR] {e}")
+                await ctx.send(f"An error occurred: {e}")
+    else:
+        await ctx.send("A generation is already in progress. Please wait for it to finish.")
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CheckFailure):
+        await ctx.send("You cannot use that command in this channel!")
 
 # FIXME: User ID is added to conversation_history twice on bot restart
 # def save_conversation_history(conversation_history, filename="conversation_history.json"):
@@ -324,10 +386,10 @@ async def process_ai_response(user_id, conversation_history, ctx):
         print(f"[ERROR] Unknown exception: {e}\n(tell <@{os.getenv('GHETTOBIRD_UID')}> to start the server)")
 
 @bot.command()
+@is_in_allowed_channel()
 async def chat(ctx, *, user_message: str):
     # Chat with the AI chatbot.
     user_id = ctx.author.id  # Unique ID for the user
-    username = user_map.get(user_id, "unknown")  # Default to "unknown" if the user ID is not in the map
 
     # Add the system message to the conversation history if it's the user's first message
     if user_id not in conversation_history:
@@ -339,7 +401,7 @@ async def chat(ctx, *, user_message: str):
 
     # Add the user's message to the conversation history
     user_message_entry = {"role": "user", "content": user_message}
-    print(f"\n\n|------------------\n| {username} message: {user_message}\n|------------------")
+    print(f"\n\n|------------------\n| message: {user_message}\n|------------------")
 
     # print(f"\n\n[DEBUG] Conversation history:\n{conversation_history}\n\n")
 
