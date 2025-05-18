@@ -23,7 +23,6 @@ handler = logging.FileHandler(filename="discord.log", encoding="utf-8", mode="w"
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
-intents.reactions = True
 intents.guilds = True
 
 bot = commands.Bot(command_prefix=".", intents=intents)
@@ -49,14 +48,10 @@ async def shutdown(ctx):
 
 async def load_cogs():
     """Load all cogs."""
-    await bot.load_extension("cogs.reactions")  # pyright: ignore
     await bot.load_extension("cogs.message_handler")
     await bot.load_extension("cogs.error_handler")
     await bot.load_extension("cogs.welcome")
     await bot.load_extension("cogs.events")
-    # WARN: LOCAL COGS (only work on localhost)
-    # await bot.load_extension("cogs.generate")  # pyright: ignore
-    # await bot.load_extension("cogs.chatbot")  # pyright: ignore
 
 async def main():
     print("Starting bot...")
