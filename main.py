@@ -5,6 +5,7 @@
 # TODO: See if there's a way to play music from spotify with a command
 
 from utils.config import DISCORD_TOKEN
+from utils.keep_alive import keep_alive
 from discord.ext import commands
 import asyncio
 import discord
@@ -65,4 +66,5 @@ async def main():
         await bot.start(DISCORD_TOKEN)  # pyright: ignore
 
 if __name__ == "__main__":
+    keep_alive()  # Start the web server
     asyncio.run(main())
