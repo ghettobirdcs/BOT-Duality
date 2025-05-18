@@ -1,12 +1,8 @@
 discord.py
 python-dotenv
 pytz
-huggingface_hub
 requests
 asyncio
-diffusers
 torch
-transformers
-accelerate
-safetensors
 dateparser
+flask
