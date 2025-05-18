@@ -54,8 +54,9 @@ async def load_cogs():
     await bot.load_extension("cogs.error_handler")
     await bot.load_extension("cogs.welcome")
     await bot.load_extension("cogs.events")
-    await bot.load_extension("cogs.generate")  # pyright: ignore
-    await bot.load_extension("cogs.chatbot")  # pyright: ignore
+    # WARN: LOCAL COGS (only work on localhost)
+    # await bot.load_extension("cogs.generate")  # pyright: ignore
+    # await bot.load_extension("cogs.chatbot")  # pyright: ignore
 
 async def main():
     print("Starting bot...")
