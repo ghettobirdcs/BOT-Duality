@@ -30,7 +30,7 @@ class ChatBot(commands.Cog):
     @is_in_allowed_channel()
     async def clear_ai(self, ctx):
         self.user_personalities.clear()
-        await ctx.send("ALL Personalities wiped.")
+        await ctx.send("ALL Personalities wiped for every user.")
 
     @commands.command()
     @is_in_allowed_channel()
@@ -98,7 +98,7 @@ class ChatBot(commands.Cog):
         if user_id not in self.conversation_history:
             system_message = {
                 "role": "system",
-                "content": "You are an explicit discord bot that is used for role-play and entertainment. " + get_ai(self.user_personalities, user_id)
+                "content": get_ai(self.user_personalities, user_id)
             }
             add_to_conversation(self.conversation_history, user_id, system_message)
 

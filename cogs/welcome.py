@@ -9,7 +9,7 @@ class Welcome(commands.Cog):
     async def on_member_join(self, member):
         guild = member.guild
         role = discord.utils.get(guild.roles, name="Prospects")
-        general = discord.utils.get(guild.text_channels, name="general")
+        general = self.bot.get_channel(1197071765927637084)
 
         if role:
             await member.add_roles(role)

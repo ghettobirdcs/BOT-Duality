@@ -2,6 +2,7 @@
 # TODO: Clean unused libraries (autoremove)
 # TODO: Save chat history and set_ai system messages values to files
 # TODO: Save and load repeating events
+# TODO: See if there's a way to play music from spotify with a command
 
 from utils.config import DISCORD_TOKEN
 from discord.ext import commands
@@ -48,13 +49,13 @@ async def shutdown(ctx):
 
 async def load_cogs():
     """Load all cogs."""
-    await bot.load_extension("cogs.generate")  # pyright: ignore
     await bot.load_extension("cogs.reactions")  # pyright: ignore
-    await bot.load_extension("cogs.chatbot")  # pyright: ignore
     await bot.load_extension("cogs.message_handler")
     await bot.load_extension("cogs.error_handler")
     await bot.load_extension("cogs.welcome")
     await bot.load_extension("cogs.events")
+    await bot.load_extension("cogs.generate")  # pyright: ignore
+    await bot.load_extension("cogs.chatbot")  # pyright: ignore
 
 async def main():
     print("Starting bot...")

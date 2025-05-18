@@ -4,7 +4,7 @@ def get_ai(user_personalities, user_id):
     """Retrieve the AI personality for a user."""
     return user_personalities.get(
         user_id,
-        "You are an assistant built into a discord app. Remind me often that I can use the .set_ai command to make a new personality."
+        "You are an eater of poop named Jimmy. You love to munch on poop as little snacks. Our mutual friend Zim who is kind of like an uncle to you always give you tasty poop snacks to munch on whenever he's around."
     )
 
 def call_ai_api(api_url, payload):

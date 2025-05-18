@@ -1,29 +1,65 @@
+from utils.config import MODEL_PATH, HF_TOKEN, is_in_allowed_channel
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
-from utils.config import MODEL_PATH, is_in_allowed_channel
+# from huggingface_hub.utils import logging as hf_logging
+from safetensors.torch import save_file
+from huggingface_hub import login
 from discord.ext import commands
 import discord
 import asyncio
 import torch
 import time
 import io
+import os
+
+# Login to huggingface cli
+login(token=HF_TOKEN)
+
+# Enable debug logging
+# hf_logging.set_verbosity_debug()
 
 class Generate(commands.Cog):
-    def __init__(self, bot, model_path, generate_lock):
+    def __init__(self, bot, generate_lock):
         self.bot = bot
-        self.pipe = DiffusionPipeline.from_pretrained(model_path, torch_dtype=torch.float16)
-        self.pipe.to("cuda")
-        self.pipe.safety_checker = None
         self.generate_lock = generate_lock
+        self.command_enabled = False
+
+        # Convert .bin files to .safetensors if necessary
+        self.convert_bin_to_safetensors()
+
+        self.pipe = DiffusionPipeline.from_pretrained(MODEL_PATH, torch_dtype=torch.float16)
+        self.pipe.to("cuda")
+        # Disable safety checker
+        self.pipe.safety_checker = None
+
+    def convert_bin_to_safetensors(self):
+        components = ["unet", "vae"]
+        for component in components:
+            component_path = os.path.join(str(MODEL_PATH), component)
+            bin_file = os.path.join(component_path, "diffusion_pytorch_model.bin")
+            safetensors_file = os.path.join(component_path, "diffusion_pytorch_model.safetensors")
+
+            # If .bin file exists and not .safetensors
+            if os.path.exists(bin_file) and not os.path.exists(safetensors_file):
+                print(f"Converting {bin_file} to {safetensors_file}...")
+                # Load the .bin file
+                state_dict = torch.load(bin_file, map_location="cpu")
+                # Save as .safetensors
+                save_file(state_dict, safetensors_file)
+                print(f"Converted {bin_file} to {safetensors_file}!")
 
     @commands.command()
     @is_in_allowed_channel()
     async def generate(self, ctx, *, prompt: str):
-        """Generate an image using the Stable Diffusion model."""
+        if not self.command_enabled:
+            await ctx.send("The command is currently disabled by the bot's father. Please try again later.")
+            return
+
         if not self.generate_lock.locked():
             async with self.generate_lock:
                 start_time = time.time()
 
                 # Send an initial status message
+                print(f"Generating: {prompt}...")
                 status_message = await ctx.send(f"Generating an image for: `{prompt}`\n[░░░░░░░░░░]")
 
                 image_ready = asyncio.Event()
@@ -63,9 +99,7 @@ class Generate(commands.Cog):
 
                 try:
                     # Run the image generation in a separate thread
-                    image = await asyncio.to_thread(
-                        lambda: self.pipe(prompt)  # pyright: ignore
-                    )
+                    image = await asyncio.to_thread(lambda: self.pipe(prompt))  # pyright: ignore
 
                     # Signal that the image is ready
                     image_ready.set()
@@ -93,8 +127,26 @@ class Generate(commands.Cog):
                     except asyncio.CancelledError:
                         pass
         else:
-            await ctx.send("A generation is already in progress. Please wait for it to finish.")
+            # TODO: Handle the case where the command is already in progress
+            await ctx.send("Something went wrong. Please try again later.")
+
+    @commands.command()
+    async def clear_messages(self, ctx):
+        # Clear message history in the channel
+        async for message in ctx.channel.history(limit=10):
+            try:
+                await message.delete()
+            except discord.Forbidden:
+                pass
+
+    @commands.command()
+    @commands.is_owner()
+    async def toggle_gen(self, ctx):
+        """Toggle the generate command on or off."""
+        self.command_enabled = not self.command_enabled
+        status = "enabled" if self.command_enabled else "disabled"
+        await ctx.send(f"The generate command has been {status}.")
 
 async def setup(bot):
     generate_lock = asyncio.Lock()
-    await bot.add_cog(Generate(bot, MODEL_PATH, generate_lock))
+    await bot.add_cog(Generate(bot, generate_lock))
