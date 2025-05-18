@@ -9,18 +9,18 @@ from utils.keep_alive import keep_alive
 from discord.ext import commands
 import asyncio
 import discord
-import logging
+# import logging
 
 # Configure logging
-logging.basicConfig(
-    level=logging.DEBUG,  # Set the logging level
-    format="%(asctime)s %(levelname)s: %(message)s",  # Log format
-    handlers=[
-        logging.FileHandler(filename="discord.log", encoding="utf-8", mode="w"),  # Log to a file
-    ]
-)
+# logging.basicConfig(
+#     level=logging.DEBUG,  # Set the logging level
+#     format="%(asctime)s %(levelname)s: %(message)s",  # Log format
+#     handlers=[
+#         logging.FileHandler(filename="discord.log", encoding="utf-8", mode="w"),  # Log to a file
+#     ]
+# )
 
-handler = logging.FileHandler(filename="discord.log", encoding="utf-8", mode="w")
+# handler = logging.FileHandler(filename="discord.log", encoding="utf-8", mode="w")
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
