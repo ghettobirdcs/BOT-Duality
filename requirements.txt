@@ -4,5 +4,4 @@ pytz
 requests
 asyncio
 torch
-dateparser
 flask

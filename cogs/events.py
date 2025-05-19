@@ -4,12 +4,71 @@ from datetime import datetime
 import discord
 import asyncio
 import pytz
+import json
+import os
 
 class Events(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # TODO: Fix repeating_events
         self.repeating_events = {}
+        self.file_path = "repeating_events.json"
+        self.load_repeating_events() # Load events on startup
+        self.bot.loop.create_task(self.repeating_event_scheduler())
+
+        def save_repeating_events(self):
+            """Save repeating events to a file."""
+            try:
+                with open(self.file_path, "w") as f:
+                    json.dump(self.repeating_events, f, indent=4)
+            except Exception as e:
+                print(f"Error saving repeating events: {e}")
+
+    def load_repeating_events(self):
+        """Load repeating events from a file."""
+        if os.path.exists(self.file_path):
+            try:
+                with open(self.file_path, "r") as f:
+                    self.repeating_events = json.load(f)
+                # Convert role IDs back to integers for Discord API compatibility
+                for channel_id, events in self.repeating_events.items():
+                    for event in events:
+                        if event["role_to_mention"]:
+                            event["role_to_mention"] = int(event["role_to_mention"])
+            except Exception as e:
+                print(f"Error loading repeating events: {e}")
+                self.repeating_events = {}
+
+    async def repeating_event_scheduler(self):
+        await self.bot.wait_until_ready()
+        while not self.bot.is_closed():
+            current_time = int(datetime.now().timestamp())
+            for channel_id, events in list(self.repeating_events.items()):
+                for event in events[:]:  # Iterate over a copy of the list to allow modification
+                    if current_time >= event["timestamp"]:  # Time to post the event
+                        channel = self.bot.get_channel(channel_id)
+                        if channel:  # Ensure the channel is valid
+                            embed = discord.Embed(
+                                title=event["title"],
+                                description=f"**Time:** <t:{event['timestamp']}:F> (relative: <t:{event['timestamp']}:R>)\n",
+                                color=discord.Color.blue(),
+                            )
+                            embed.add_field(name="✅ Attending", value="[_______]", inline=True)
+                            embed.add_field(name="❌ Not Attending", value="[_______]", inline=True)
+                            embed.set_footer(text="Repeating Event")
+
+                            # Mention the role if applicable
+                            role_to_mention = channel.guild.get_role(event["role_to_mention"]) if event["role_to_mention"] else None
+                            if role_to_mention:
+                                await channel.send(f"{role_to_mention.mention}", embed=embed)
+                            else:
+                                await channel.send(embed=embed)
+
+                            # Reschedule the event for next week
+                            event["timestamp"] += 7 * 24 * 60 * 60  # Add 7 days in seconds
+
+                            # Save updated events to file
+                            self.save_repeating_events()
+            await asyncio.sleep(60) # Check every minute
 
     @commands.command()
     @commands.has_role("Admins")
@@ -126,8 +185,8 @@ class Events(commands.Cog):
             description=f"**Time:** <t:{timestamp}:F> (relative: <t:{timestamp}:R>)\n",
             color=discord.Color.blue(),
         )
-        embed.add_field(name="✅ Attending", value="[        ]", inline=True)
-        embed.add_field(name="❌ Not Attending", value="[        ]", inline=True)
+        embed.add_field(name="✅ Attending", value="[_______]", inline=True)
+        embed.add_field(name="❌ Not Attending", value="[_______]", inline=True)
         embed.set_footer(text=f"Event created by {ctx.author.name}")
 
         # Create the buttons
@@ -154,8 +213,8 @@ class Events(commands.Cog):
                     await self.update_embed(interaction)
 
             async def update_embed(self, interaction: discord.Interaction):
-                embed.set_field_at(0, name="✅ Attending", value="\n".join(self.attending) or "[        ]", inline=True)
-                embed.set_field_at(1, name="❌ Not Attending", value="\n".join(self.not_attending) or "[        ]", inline=True)
+                embed.set_field_at(0, name="✅ Attending", value="\n".join(self.attending) or "[_______]", inline=True)
+                embed.set_field_at(1, name="❌ Not Attending", value="\n".join(self.not_attending) or "[_______]", inline=True)
                 await interaction.response.edit_message(embed=embed, view=self)
 
         # Post the embed to the channel where the command was invoked
@@ -167,12 +226,14 @@ class Events(commands.Cog):
 
         # Schedule the event to repeat weekly if requested
         if repeat_weekly:
-            self.repeating_events[ctx.channel.id] = {
-                "ctx": ctx,
-                "embed": embed,
-                "view": view,
-                "role_to_mention": role_to_mention,
-            }
+            if ctx.channel.id not in self.repeating_events:
+                self.repeating_events[ctx.channel.id] = []
+            self.repeating_events[ctx.channel.id].append({
+                "title": event_title,
+                "timestamp": timestamp,
+                "role_to_mention": role_to_mention.id if role_to_mention else None,
+            })
+            self.save_repeating_events()  # Save after adding the event
 
 async def setup(bot):
     await bot.add_cog(Events(bot))
