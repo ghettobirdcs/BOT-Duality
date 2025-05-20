@@ -22,6 +22,8 @@ import discord
 
 # handler = logging.FileHandler(filename="discord.log", encoding="utf-8", mode="w")
 intents = discord.Intents.default()
+intents.messages = True
+intents.voice_states = True
 intents.message_content = True
 intents.members = True
 intents.guilds = True
@@ -53,6 +55,7 @@ async def load_cogs():
     await bot.load_extension("cogs.error_handler")
     await bot.load_extension("cogs.welcome")
     await bot.load_extension("cogs.events")
+    await bot.load_extension("cogs.music")
 
 async def main():
     print("Starting bot...")

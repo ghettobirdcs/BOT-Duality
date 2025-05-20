@@ -15,13 +15,13 @@ class Events(commands.Cog):
         self.load_repeating_events() # Load events on startup
         self.bot.loop.create_task(self.repeating_event_scheduler())
 
-        def save_repeating_events(self):
-            """Save repeating events to a file."""
-            try:
-                with open(self.file_path, "w") as f:
-                    json.dump(self.repeating_events, f, indent=4)
-            except Exception as e:
-                print(f"Error saving repeating events: {e}")
+    def save_repeating_events(self):
+        """Save repeating events to a file."""
+        try:
+            with open(self.file_path, "w") as f:
+                json.dump(self.repeating_events, f, indent=4)
+        except Exception as e:
+            print(f"Error saving repeating events: {e}")
 
     def load_repeating_events(self):
         """Load repeating events from a file."""
@@ -44,7 +44,11 @@ class Events(commands.Cog):
             current_time = int(datetime.now().timestamp())
             for channel_id, events in list(self.repeating_events.items()):
                 for event in events[:]:  # Iterate over a copy of the list to allow modification
-                    if current_time >= event["timestamp"]:  # Time to post the event
+                    # Check if it's time to post the event 24 hours early
+                    if (
+                        current_time >= event["timestamp"] - 24 * 60 * 60  # 24 hours before the event
+                        and not event.get("posted_early", False)  # Ensure it hasn't already been posted early
+                    ):
                         channel = self.bot.get_channel(channel_id)
                         if channel:  # Ensure the channel is valid
                             embed = discord.Embed(
@@ -63,12 +67,22 @@ class Events(commands.Cog):
                             else:
                                 await channel.send(embed=embed)
 
-                            # Reschedule the event for next week
-                            event["timestamp"] += 7 * 24 * 60 * 60  # Add 7 days in seconds
+                            # Mark the event as posted early
+                            event["posted_early"] = True
 
                             # Save updated events to file
                             self.save_repeating_events()
-            await asyncio.sleep(60) # Check every minute
+
+                    # Check if it's time to reschedule the event
+                    if current_time >= event["timestamp"]:
+                        # Reschedule the event for next week
+                        event["timestamp"] += 7 * 24 * 60 * 60  # Add 7 days in seconds
+                        event["posted_early"] = False  # Reset the early-post flag
+
+                        # Save updated events to file
+                        self.save_repeating_events()
+
+            await asyncio.sleep(60)  # Check every minute
 
     @commands.command()
     @commands.has_role("Admins")

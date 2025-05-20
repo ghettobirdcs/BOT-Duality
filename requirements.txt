@@ -5,3 +5,5 @@ requests
 asyncio
 torch
 flask
+spotipy
+yt_dlp
