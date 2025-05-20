@@ -7,3 +7,5 @@ torch
 flask
 spotipy
 yt_dlp
+pynacl
+ffmpeg

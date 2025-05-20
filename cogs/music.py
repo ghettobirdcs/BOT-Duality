@@ -1,9 +1,9 @@
 import discord
+import asyncio
 from discord.ext import commands
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyClientCredentials
 import yt_dlp
-import asyncio
 from utils.config import SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
 
 class Music(commands.Cog):
@@ -42,6 +42,7 @@ class Music(commands.Cog):
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }],
+            'cookiefile': "./cookies.txt"
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:
@@ -54,15 +55,30 @@ class Music(commands.Cog):
                 return
 
         # Join the user's voice channel and play the audio
-        if ctx.author.voice:
-            channel = ctx.author.voice.channel
-            vc = await channel.connect()
-            vc.play(discord.FFmpegPCMAudio(audio_url))
+        if ctx.author.voice:  # Check if the user is in a voice channel
+            try:
+                channel = ctx.author.voice.channel
+                if ctx.voice_client:  # Check if already connected
+                    await ctx.voice_client.disconnect()
+                vc = await channel.connect()  # Attempt to connect
+                await ctx.send(f"Connected to [{channel.name}]")
+            except Exception as e:
+                await ctx.send(f"Failed to join the voice channel: {e}")
+                return
+        else:
+            await ctx.send("You need to be in a voice channel to play music!")
+            return
+        
+        # Play music
+        try:
+            vc.play(discord.FFmpegPCMAudio(audio_url))  # Ensure audio_url is passed here
             while vc.is_playing():
                 await asyncio.sleep(1)
             await vc.disconnect()
-        else:
-            await ctx.send("You need to be in a voice channel to play music!")
+        except Exception as e:
+            await ctx.send(f"Failed to play the audio: {e}")
+            if vc.is_connected():
+                await vc.disconnect()
 
     @commands.command()
     async def stop(self, ctx):
