@@ -105,8 +105,8 @@ class Music(commands.Cog):
                     # Update existing progress message
                     await self.progress_message[guild_id].edit(content=progress_bar)
                 
-                await asyncio.sleep(1)  # Update every 1 second
-                elapsed += 1
+                await asyncio.sleep(10)  # Update every 10 seconds
+                elapsed += 10
 
         except discord.NotFound:
             # If the message is deleted, stop updating
@@ -157,8 +157,8 @@ class Music(commands.Cog):
                 )
 
                 # Log the song and queue state
-                print(f"Playing next song: {self.current_song[guild_id]}")
-                print(f"Remaining queue: {list(queue._queue)}")
+                # print(f"Playing next song: {self.current_song[guild_id]}")
+                # print(f"Remaining queue: {list(queue._queue)}")
 
                 # Update the embed immediately after the song starts playing
                 await self.update_status_message(ctx)
@@ -210,7 +210,7 @@ class Music(commands.Cog):
         # Stop the current song and wait for it to stop before playing the next one
         if ctx.voice_client:  # Check if the bot is connected to a voice channel
             if ctx.voice_client.is_playing():  # Check if music is currently playing
-                print(f"Skipping song: {self.current_song[guild_id]}")
+                # print(f"Skipping song: {self.current_song[guild_id]}")
                 ctx.voice_client.stop()  # Stop the current song
                 await self.play_next_in_queue(ctx)  # Play the next song in the queue
             else:
