@@ -38,7 +38,7 @@ class Music(commands.Cog):
 
             try:
                 vc.play(discord.FFmpegPCMAudio(audio_url), after=lambda e: self.bot.loop.create_task(self.play_next_in_queue(ctx)))
-                await ctx.send(f"Now playing: {video_title}")
+                await ctx.send(f"Now playing: `{video_title}`")
             except Exception as e:
                 await ctx.send(f"Failed to play the next song: {e}")
                 if vc.is_connected():
@@ -60,13 +60,13 @@ class Music(commands.Cog):
                 track_name = track_info['name']
                 artist_name = track_info['artists'][0]['name']
                 search_query = f"{track_name} {artist_name}"
-                status_message = await ctx.send(f"Searching YouTube for: {track_name} by {artist_name}")
+                status_message = await ctx.send(f"Searching YouTube for: `{track_name}` by `{artist_name}`")
             except Exception as e:
                 status_message = await ctx.send("Failed to retrieve track information from Spotify.")
                 return
         else:
             search_query = query
-            status_message = await ctx.send(f"Searching YouTube for: {search_query}")
+            status_message = await ctx.send(f"Searching YouTube for: `{search_query}`")
 
         # Search for the track on YouTube and retrieve the audio URL
         ydl_opts = {
@@ -84,9 +84,9 @@ class Music(commands.Cog):
                 info = ydl.extract_info(f"ytsearch:{search_query}", download=False)['entries'][0]
                 audio_url = info['url']
                 video_title = info['title']
-                await status_message.edit(content=f"Queued: {video_title}")
+                await status_message.edit(content=f"Queued: `{video_title}`")
             except Exception as e:
-                await status_message.edit(content=f"Failed to find [{video_title}] on YouTube.")
+                await status_message.edit(content=f"Failed to find `{video_title}` on YouTube.")
                 return
 
                 # Add the song to the queue
@@ -101,13 +101,27 @@ class Music(commands.Cog):
                     vc = await channel.connect()  # Connect to the channel
                     await self.play_next_in_queue(ctx)  # Start playing the first song
                 except Exception as e:
-                    await ctx.send(f"Failed to join the voice channel: {e}")
+                    await ctx.send(f"Failed to join the voice channel `{vc}`: {e}")
                     return
             else:
                 await ctx.send("You need to be in a voice channel to play music!")
                 return
         elif not ctx.voice_client.is_playing():  # If the bot is connected but not playing
             await self.play_next_in_queue(ctx)
+
+    @commands.command()
+    @is_in_allowed_channel()
+    async def skip(self, ctx):
+        """Skips the currently playing song."""
+        if ctx.voice_client:  # Check if the bot is connected to a voice channel
+            if ctx.voice_client.is_playing():  # Check if music is currently playing
+                await ctx.send("Skipping the current song...")
+                ctx.voice_client.stop()  # Stop the current song
+                await self.play_next_in_queue(ctx)  # Play the next song in the queue
+            else:
+                await ctx.send("No song is currently playing.")
+        else:
+            await ctx.send("I am not connected to any voice channel.")
 
     @commands.command()
     @commands.is_owner()
