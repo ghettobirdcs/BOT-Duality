@@ -10,3 +10,5 @@ transformers
 accelerate
 safetensors
 dateparser
+spotipy
+yt-dlp

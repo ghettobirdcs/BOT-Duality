@@ -1,8 +1,6 @@
+# WARN: This repo is outdated, use 'host' branch instead
 # TODO: Check for empty .chat message
-# TODO: Clean unused libraries (autoremove)
 # TODO: Save chat history and set_ai system messages values to files
-# TODO: Save and load repeating events
-# TODO: See if there's a way to play music from spotify with a command
 
 from utils.config import DISCORD_TOKEN
 from utils.keep_alive import keep_alive
@@ -22,7 +20,9 @@ logging.basicConfig(
 
 handler = logging.FileHandler(filename="discord.log", encoding="utf-8", mode="w")
 intents = discord.Intents.default()
+intents.messages = True
 intents.message_content = True
+intents.voice_states = True
 intents.members = True
 intents.reactions = True
 intents.guilds = True
@@ -50,14 +50,15 @@ async def shutdown(ctx):
 
 async def load_cogs():
     """Load all cogs."""
+    # await bot.load_extension("cogs.message_handler")
+    # await bot.load_extension("cogs.error_handler")
+    # await bot.load_extension("cogs.welcome")
+    # await bot.load_extension("cogs.events")
+    # await bot.load_extension("cogs.music")  # pyright: ignore
     await bot.load_extension("cogs.reactions")  # pyright: ignore
-    await bot.load_extension("cogs.message_handler")
-    await bot.load_extension("cogs.error_handler")
-    await bot.load_extension("cogs.welcome")
-    await bot.load_extension("cogs.events")
     # WARN: LOCAL COGS (only work on localhost)
-    # await bot.load_extension("cogs.generate")  # pyright: ignore
-    # await bot.load_extension("cogs.chatbot")  # pyright: ignore
+    await bot.load_extension("cogs.generate")  # pyright: ignore
+    await bot.load_extension("cogs.chatbot")  # pyright: ignore
 
 async def main():
     print("Starting bot...")

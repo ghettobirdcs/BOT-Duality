@@ -14,6 +14,10 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 
 def is_in_allowed_channel():
     def predicate(ctx):
+        # Check if the author is a bot owner
+        if ctx.author.id == ctx.bot.owner_id:
+            return True
+
         # Check if the command is in the allowed channel or a dm
         return isinstance(ctx.channel, discord.DMChannel) or ctx.channel.id == NSFW_CHANNEL
     return commands.check(predicate)
