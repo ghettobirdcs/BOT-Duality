@@ -3,7 +3,7 @@ from threading import Thread
 import time
 
 app = Flask('')
-port = process.env.PORT || 10000 # For running as a web app on render.com
+port = 10000 # For running as a web app on render.com
 
 @app.route('/')
 def home():
