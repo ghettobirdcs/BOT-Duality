@@ -63,9 +63,9 @@ class Music(commands.Cog):
             title="🎵 Music Player Status",
             color=discord.Color.blue()
         )
-        embed.add_field(name="Now Playing", value=title, inline=False)
-        embed.add_field(name="Next Song", value=next_song, inline=False)
-        embed.add_field(name="Songs in Queue", value=str(queue_length), inline=False)
+        embed.add_field(name="Now Playing", value=f"`{title}`", inline=False)
+        embed.add_field(name="Next Song", value=f"`{next_song}`", inline=False)
+        embed.add_field(name="Songs in Queue", value=f"`{queue_length}`", inline=False)
 
         # Optional status field (e.g., "Searching for a song...")
         if status:
@@ -257,7 +257,7 @@ class Music(commands.Cog):
             'cookiefile': "./cookies.txt"
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            while True:
+            for i in range(3):  # Retry up to 3 times
                 try:
                     info = ydl.extract_info(f"ytsearch:{search_query}", download=False)['entries'][0]
                     audio_url = info['url']
@@ -265,8 +265,9 @@ class Music(commands.Cog):
                     duration = info['duration']  # Duration in seconds
                     break
                 except Exception as e:
-                    await self.update_status_message(ctx, status=f"Failed to find `{search_query}`. Trying again...")
+                    await self.update_status_message(ctx, status=f"Failed to find `{search_query}`. [{i}] Trying again...")
                     await ctx.message.delete()  # Delete the user's command message
+                    await asyncio.sleep(2)  # Wait before retrying
                     continue
 
         # Add the song to the queue
