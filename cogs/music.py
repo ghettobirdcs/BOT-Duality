@@ -1,6 +1,4 @@
 # TODO: Understand this
-# TODO: fix embed when skipping to the last song in the queue
-# To recreate, .skip when there is one song in the queue
 
 import discord
 import asyncio
@@ -175,6 +173,7 @@ class Music(commands.Cog):
                     await vc.disconnect()
         else:
             # Queue is empty but only reset the song after playback stops
+            await asyncio.sleep(1)
             vc = ctx.voice_client
             if vc and vc.is_playing():
                 print("Playback is ongoing; waiting for it to finish before resetting.")
@@ -199,6 +198,12 @@ class Music(commands.Cog):
     @commands.command()
     @is_in_allowed_channel()
     async def skip(self, ctx):
+        # Attempt to delete the user's command message
+        try:
+            await ctx.message.delete()
+        except Exception as e:
+            print(f"Failed to delete skip command message: {e}")
+
         """Skips the currently playing song."""
         guild_id = ctx.guild.id
 
@@ -217,12 +222,6 @@ class Music(commands.Cog):
                 await ctx.send("No song is currently playing.")
         else:
             await ctx.send("I am not connected to any voice channel.")
-
-        # Attempt to delete the user's command message
-        try:
-            await ctx.message.delete()
-        except Exception as e:
-            print(f"Failed to delete skip command message: {e}")
 
     @commands.command()
     @is_in_allowed_channel()
@@ -257,15 +256,17 @@ class Music(commands.Cog):
             'cookiefile': "./cookies.txt"
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            try:
-                info = ydl.extract_info(f"ytsearch:{search_query}", download=False)['entries'][0]
-                audio_url = info['url']
-                video_title = info['title']
-                duration = info['duration']  # Duration in seconds
-            except Exception as e:
-                await self.update_status_message(ctx, status=f"Failed to find `{search_query}` on YouTube.")
-                await ctx.message.delete()  # Delete the user's command message
-                return
+            while True:
+                try:
+                    info = ydl.extract_info(f"ytsearch:{search_query}", download=False)['entries'][0]
+                    audio_url = info['url']
+                    video_title = info['title']
+                    duration = info['duration']  # Duration in seconds
+                    break
+                except Exception as e:
+                    await self.update_status_message(ctx, status=f"Failed to find `{search_query}`. Trying again...")
+                    await ctx.message.delete()  # Delete the user's command message
+                    continue
 
         # Add the song to the queue
         queue = self.get_queue(ctx.guild.id)
