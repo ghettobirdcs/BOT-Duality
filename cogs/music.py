@@ -155,10 +155,10 @@ class Music(commands.Cog):
         except discord.Forbidden:
             pass
 
-        await ctx.send(f"Searching archive.org for `{query}`...")
+        await ctx.send(f"Searching archive.org for `{query}`...", delete_after=10)
         results = await self.archive_search(query)
         if not results:
-            await ctx.send("No results found for your query on archive.org.")
+            await ctx.send("No results found for your query on archive.org.", delete_after=10)
             return
 
         embed = discord.Embed(
