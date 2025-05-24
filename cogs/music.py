@@ -1,3 +1,5 @@
+# WARN: I just deleted the progress bar code, so it may not work but still should be functional without a progress bar being sent to the channel as well.
+
 import discord
 import asyncio
 from discord.ext import commands
@@ -19,19 +21,11 @@ class Music(commands.Cog):
         self.song_queues = {}  # {guild_id: asyncio.Queue}
         self.current_song = {}  # {guild_id: dict}
         self.status_message = {}  # {guild_id: message}
-        self.progress_message = {}  # {guild_id: message}
-        self.progress_task = {}  # {guild_id: asyncio.Task}
 
     def get_queue(self, guild_id):
         if guild_id not in self.song_queues:
             self.song_queues[guild_id] = asyncio.Queue()
         return self.song_queues[guild_id]
-
-    def generate_progress_bar(self, elapsed, total):
-        bar_length = 30
-        progress = min(int((elapsed / total) * bar_length), bar_length)
-        bar = "▬" * progress + "🔘" + "▬" * (bar_length - progress)
-        return f"{bar} {self.format_time(elapsed)} / {self.format_time(total)}"
 
     def format_time(self, seconds):
         minutes, seconds = divmod(int(seconds), 60)
@@ -70,30 +64,6 @@ class Music(commands.Cog):
             await asyncio.sleep(remove_status_after)
             await self.update_status_message(ctx)
 
-    async def update_progress_message(self, ctx, duration):
-        guild_id = ctx.guild.id
-        elapsed = 0
-        try:
-            while elapsed < duration:
-                progress_bar = self.generate_progress_bar(elapsed, duration)
-                if guild_id not in self.progress_message:
-                    self.progress_message[guild_id] = await ctx.send(progress_bar)
-                else:
-                    await self.progress_message[guild_id].edit(content=progress_bar)
-                await asyncio.sleep(10)
-                elapsed += 10
-        except discord.NotFound:
-            print(f"[DEBUG] Progress bar message for guild {guild_id} was deleted.")
-        except Exception as e:
-            print(f"[ERROR] Error in progress task for guild {guild_id}: {e}")
-        finally:
-            if guild_id in self.progress_message:
-                try:
-                    await self.progress_message[guild_id].delete()
-                    del self.progress_message[guild_id]
-                except discord.NotFound:
-                    pass
-
     async def play_next_in_queue(self, ctx):
         guild_id = ctx.guild.id
         queue = self.get_queue(guild_id)
@@ -102,12 +72,7 @@ class Music(commands.Cog):
             next_song = await queue.get()
             self.current_song[guild_id] = next_song
             audio_url = next_song['audio_url']
-            duration = next_song.get("duration", 0)
             vc = ctx.voice_client
-
-            if guild_id in self.progress_task:
-                self.progress_task[guild_id].cancel()
-                del self.progress_task[guild_id]
 
             try:
                 while vc.is_playing():
@@ -119,16 +84,12 @@ class Music(commands.Cog):
                 )
 
                 await self.update_status_message(ctx)
-                self.progress_task[guild_id] = self.bot.loop.create_task(
-                    self.update_progress_message(ctx, duration)
-                )
             except Exception as e:
                 print(f"[ERROR] Failed to play the next song in guild {guild_id}: {e}")
                 await ctx.send(f"Failed to play the next song: {e}")
                 if vc.is_connected():
                     await vc.disconnect()
         else:
-            await asyncio.sleep(1)
             vc = ctx.voice_client
             if vc and vc.is_playing():
                 print("Playback is ongoing; waiting for it to finish before resetting.")
@@ -137,12 +98,6 @@ class Music(commands.Cog):
             self.current_song[guild_id] = {"title": "No song playing"}
             print("Queue is empty. No song is currently playing.")
             await self.update_status_message(ctx)
-            if guild_id in self.progress_message:
-                try:
-                    await self.progress_message[guild_id].delete()
-                    del self.progress_message[guild_id]
-                except discord.NotFound:
-                    pass
             await asyncio.sleep(600)
             if ctx.voice_client and not ctx.voice_client.is_playing():
                 await ctx.voice_client.disconnect()
@@ -154,12 +109,6 @@ class Music(commands.Cog):
             await ctx.message.delete()
         except Exception as e:
             print(f"Failed to delete skip command message: {e}")
-
-        guild_id = ctx.guild.id
-
-        if guild_id in self.progress_task:
-            self.progress_task[guild_id].cancel()
-            del self.progress_task[guild_id]
 
         if ctx.voice_client:
             if ctx.voice_client.is_playing():
