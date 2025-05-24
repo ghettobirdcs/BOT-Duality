@@ -86,7 +86,7 @@ class Music(commands.Cog):
                 await self.update_status_message(ctx)
             except Exception as e:
                 print(f"[ERROR] Failed to play the next song in guild {guild_id}: {e}")
-                await ctx.send(f"Failed to play the next song: {e}")
+                await ctx.send(f"Failed to play the next song: {e}", delete_after=10)
                 if vc.is_connected():
                     await vc.disconnect()
         else:
@@ -115,9 +115,9 @@ class Music(commands.Cog):
                 ctx.voice_client.stop()
                 await self.play_next_in_queue(ctx)
             else:
-                await ctx.send("No song is currently playing.")
+                await ctx.send("No song is currently playing.", delete_after=10)
         else:
-            await ctx.send("I am not connected to any voice channel.")
+            await ctx.send("I am not connected to any voice channel.", delete_after=10)
 
     async def archive_search(self, query, max_results=5):
         """
@@ -128,7 +128,7 @@ class Music(commands.Cog):
             "q": f"{query} AND mediatype:(audio)",
             "fl[]": "identifier,title",
             "rows": max_results,
-            "sort[]": "downloads desc",
+            "sort[]": "relevance desc",
             "output": "json"
         }
         async with aiohttp.ClientSession() as session:
@@ -194,7 +194,7 @@ class Music(commands.Cog):
             idx = int(arg) - 1
             results = getattr(self, "last_search", {}).get(ctx.guild.id)
             if not results or idx < 0 or idx >= len(results):
-                await ctx.send("Invalid search result number. Use !search first and pick a valid number.")
+                await ctx.send("Invalid search result number. Use !search first and pick a valid number.", delete_after=10)
                 await ctx.message.delete()
                 return
             url = results[idx]['url']
@@ -269,7 +269,7 @@ class Music(commands.Cog):
             await ctx.voice_client.disconnect()
             self.current_song[ctx.guild.id] = {"title": "No song playing"}
         else:
-            await ctx.send("I am not connected to any voice channel.")
+            await ctx.send("I am not connected to any voice channel.", delete_after=10)
         await self.update_status_message(ctx)
 
 async def setup(bot):
