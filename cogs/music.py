@@ -1,4 +1,5 @@
 # TODO: Understand this
+# TODO: Add cookies command if possible
 
 import discord
 import asyncio
