@@ -9,4 +9,3 @@ spotipy
 yt_dlp
 pynacl
 ffmpeg
-gunicorn
