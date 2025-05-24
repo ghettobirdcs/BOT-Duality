@@ -149,6 +149,12 @@ class Music(commands.Cog):
         Search for audio/music in archive.org and show top results.
         Usage: !search <keywords>
         """
+        # Delete .search command message to keep the channel clean
+        try:
+            await ctx.message.delete()
+        except discord.Forbidden:
+            pass
+
         await ctx.send(f"Searching archive.org for `{query}`...")
         results = await self.archive_search(query)
         if not results:
@@ -160,7 +166,7 @@ class Music(commands.Cog):
             color=discord.Color.green()
         )
         for i, res in enumerate(results, start=1):
-            embed.add_field(name=f"{i}. {res['title']}", value=f"[Play this]({res['url']})", inline=False)
+            embed.add_field(name=f"{i}. {res['title']}", value=f"[url]({res['url']})", inline=False)
         embed.set_footer(text="To play a result, use !play <number> or provide a direct archive.org URL.")
 
         # Save results for play by number
@@ -168,7 +174,7 @@ class Music(commands.Cog):
             self.last_search = {}
         self.last_search[ctx.guild.id] = results
 
-        await ctx.send(embed=embed)
+        await ctx.send(embed=embed, delete_after=30)  # Delete after 30 seconds
 
     @commands.command()
     @is_in_allowed_channel()
@@ -177,6 +183,12 @@ class Music(commands.Cog):
         Play a song from archive.org by URL or by search result number.
         Usage: !play <archive.org url> or !play <number>
         """
+        # Delete .play command message to keep the channel clean
+        try:
+            await ctx.message.delete()
+        except discord.Forbidden:
+            pass
+
         # If arg is a digit, interpret as search result number
         if arg.isdigit():
             idx = int(arg) - 1
@@ -248,6 +260,11 @@ class Music(commands.Cog):
     @is_in_allowed_channel()
     async def stop(self, ctx):
         """Stops the current music and disconnects the bot from the voice channel."""
+        try:
+            await ctx.message.delete()
+        except discord.Forbidden:
+            pass
+
         if ctx.voice_client:
             await ctx.voice_client.disconnect()
             self.current_song[ctx.guild.id] = {"title": "No song playing"}
