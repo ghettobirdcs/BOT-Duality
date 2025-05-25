@@ -8,6 +8,7 @@ import aiohttp
 from utils.config import is_in_allowed_channel, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
 
 ARCHIVE_SEARCH_API = "https://archive.org/advancedsearch.php"
+PLAYABLE_AUDIO_EXTS = {".mp3", ".ogg", ".flac", ".aac", ".wav", ".m4a"}
 
 class Music(commands.Cog):
     def __init__(self, bot):
@@ -113,27 +114,46 @@ class Music(commands.Cog):
         else:
             await ctx.send("I am not connected to any voice channel.", delete_after=10)
 
+    async def has_playable_audio(self, identifier):
+        url = f"https://archive.org/metadata/{identifier}"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                if resp.status != 200:
+                    return False
+                data = await resp.json()
+                files = data.get("files", [])
+                for fileinfo in files:
+                    name = fileinfo.get("name", "").lower()
+                    if any(name.endswith(ext) for ext in PLAYABLE_AUDIO_EXTS):
+                        return True
+        return False
+
     async def archive_search(self, query, max_results=5):
         """
         Search archive.org for audio items matching the query.
         Returns a list of dicts with 'identifier', 'title', and 'url' fields.
+        Only returns items that have at least one playable audio file.
         """
         params = {
             "q": f"{query} AND mediatype:(audio)",
             "fl[]": "identifier,title",
-            "rows": max_results,
+            "rows": max_results * 3,  # get more to account for filtering
             "output": "json"
         }
+        results = []
         async with aiohttp.ClientSession() as session:
             async with session.get(ARCHIVE_SEARCH_API, params=params) as resp:
                 data = await resp.json()
-                results = []
                 for doc in data.get("response", {}).get("docs", []):
                     identifier = doc["identifier"]
                     title = doc.get("title", identifier)
                     url = f"https://archive.org/details/{identifier}"
-                    results.append({"identifier": identifier, "title": title, "url": url})
-                return results
+                    # Check for playable audio
+                    if await self.has_playable_audio(identifier):
+                        results.append({"identifier": identifier, "title": title, "url": url})
+                    if len(results) >= max_results:
+                        break
+        return results
 
     @commands.command()
     @is_in_allowed_channel()
@@ -214,13 +234,11 @@ class Music(commands.Cog):
                     raise Exception("yt-dlp could not extract info from the provided URL.")
                 if isinstance(info, dict) and 'entries' in info:
                     entries = info['entries']
-                    await ctx.send(f"[DEBUG] Extracted info: {info}")
-                    await ctx.send(f"[DEBUG] Extracted entries (info['entries']): {entries}")
                     if isinstance(entries, list) and entries:
                         info = entries[0]
-                        await ctx.send(f"[DEBUG] entries[0]: {info}")
+                    else:
+                        raise Exception("No audio entries found in this archive.org item.")
                 audio_url = info['url']
-                await ctx.send(f"[DEBUG] audio_url (info['url]): {audio_url}")
                 title = info.get('title', 'Unknown Audio')
                 duration = info.get('duration', 0)
         except Exception as e:
