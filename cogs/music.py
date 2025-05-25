@@ -40,7 +40,7 @@ class Music(commands.Cog):
             title="🎵 Music Player Status",
             color=discord.Color.blue()
         )
-        embed.add_field(name="Now Playing", value=f"`{title}` | `*{duration}*`", inline=False)
+        embed.add_field(name="Now Playing", value=f"`{title}` | `{duration}`", inline=False)
         embed.add_field(name="Next Song", value=f"`{next_song}`", inline=False)
         embed.add_field(name="Songs in Queue", value=f"`{queue_length}`", inline=False)
 
@@ -135,15 +135,15 @@ class Music(commands.Cog):
         Only returns items that have at least one playable audio file.
         """
         params = {
-            "q": f"{query} AND mediatype:(audio)",
-            "fl[]": "identifier,title",
-            "rows": max_results * 3,  # get more to account for filtering
+            "q": f"collection:audio AND mediatype:collection AND {query}",
+            "fl[]": "identifier,title,description",
+            "rows": max_results,
             "output": "json"
         }
-        results = []
         async with aiohttp.ClientSession() as session:
             async with session.get(ARCHIVE_SEARCH_API, params=params) as resp:
                 data = await resp.json()
+                results = []
                 for doc in data.get("response", {}).get("docs", []):
                     identifier = doc["identifier"]
                     title = doc.get("title", identifier)

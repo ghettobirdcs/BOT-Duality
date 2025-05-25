@@ -1,6 +1,3 @@
-# TODO: Check for empty .chat message
-# TODO: Set permanent weekly events for team practice that stay on redeploy
-
 from utils.config import DISCORD_TOKEN
 from utils.keep_alive import keep_alive
 from discord.ext import commands

@@ -1,3 +1,5 @@
+# TODO: Set permanent weekly events for team practice that stay on redeploy
+
 from discord.ui import View, Button
 from discord.ext import commands
 from datetime import datetime
