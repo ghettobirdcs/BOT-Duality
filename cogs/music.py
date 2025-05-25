@@ -39,7 +39,7 @@ class Music(commands.Cog):
             title="🎵 Music Player Status",
             color=discord.Color.blue()
         )
-        embed.add_field(name="Now Playing", value=f"`{title}` *{duration}*", inline=False)
+        embed.add_field(name="Now Playing", value=f"`{title}` | `*{duration}*`", inline=False)
         embed.add_field(name="Next Song", value=f"`{next_song}`", inline=False)
         embed.add_field(name="Songs in Queue", value=f"`{queue_length}`", inline=False)
 
@@ -214,9 +214,13 @@ class Music(commands.Cog):
                     raise Exception("yt-dlp could not extract info from the provided URL.")
                 if isinstance(info, dict) and 'entries' in info:
                     entries = info['entries']
+                    await ctx.send(f"[DEBUG] Extracted info: {info}")
+                    await ctx.send(f"[DEBUG] Extracted entries (info['entries']): {entries}")
                     if isinstance(entries, list) and entries:
                         info = entries[0]
+                        await ctx.send(f"[DEBUG] entries[0]: {info}")
                 audio_url = info['url']
+                await ctx.send(f"[DEBUG] audio_url (info['url]): {audio_url}")
                 title = info.get('title', 'Unknown Audio')
                 duration = info.get('duration', 0)
         except Exception as e:
