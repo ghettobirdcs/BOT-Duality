@@ -1,5 +1,3 @@
-# WARN: I just deleted the progress bar code, so it may not work but still should be functional without a progress bar being sent to the channel as well.
-
 import discord
 import asyncio
 from discord.ext import commands
@@ -27,10 +25,6 @@ class Music(commands.Cog):
             self.song_queues[guild_id] = asyncio.Queue()
         return self.song_queues[guild_id]
 
-    def format_time(self, seconds):
-        minutes, seconds = divmod(int(seconds), 60)
-        return f"{minutes:02}:{seconds:02}"
-
     async def update_status_message(self, ctx, status=None, remove_status_after=None):
         guild_id = ctx.guild.id
         queue = self.get_queue(guild_id)
@@ -45,7 +39,7 @@ class Music(commands.Cog):
             title="🎵 Music Player Status",
             color=discord.Color.blue()
         )
-        embed.add_field(name="Now Playing", value=f"`{title}`", inline=False)
+        embed.add_field(name="Now Playing", value=f"`{title}` *{duration}*", inline=False)
         embed.add_field(name="Next Song", value=f"`{next_song}`", inline=False)
         embed.add_field(name="Songs in Queue", value=f"`{queue_length}`", inline=False)
 
@@ -128,7 +122,6 @@ class Music(commands.Cog):
             "q": f"{query} AND mediatype:(audio)",
             "fl[]": "identifier,title",
             "rows": max_results,
-            "sort[]": "relevance desc",
             "output": "json"
         }
         async with aiohttp.ClientSession() as session:
@@ -234,7 +227,7 @@ class Music(commands.Cog):
         queue = self.get_queue(ctx.guild.id)
         await queue.put({'audio_url': audio_url, 'title': title, 'duration': duration})
 
-        await self.update_status_message(ctx, status=f"Queued: `{title}`", remove_status_after=2)
+        await self.update_status_message(ctx, status=f"Queued: `{title}`", remove_status_after=5)
 
         if not ctx.voice_client:
             if ctx.author.voice:

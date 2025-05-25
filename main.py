@@ -1,8 +1,5 @@
 # TODO: Check for empty .chat message
-# TODO: Clean unused libraries (autoremove)
-# TODO: Save chat history and set_ai system messages values to files
-# TODO: Save and load repeating events
-# TODO: See if there's a way to play music from spotify with a command
+# TODO: Set permanent weekly events for team practice that stay on redeploy
 
 from utils.config import DISCORD_TOKEN
 from utils.keep_alive import keep_alive
